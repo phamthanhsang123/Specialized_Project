@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
@@ -89,7 +90,7 @@ class Issue(Base, TimestampMixin):
 
     project: Mapped[Project] = relationship(back_populates="issues")
     file: Mapped[SourceFile] = relationship(back_populates="issues")
-    proposal: Mapped["FixProposal | None"] = relationship(back_populates="issue", cascade="all, delete-orphan")
+    proposal: Mapped[Optional["FixProposal"]] = relationship(back_populates="issue", cascade="all, delete-orphan")
     history: Mapped[list["ReviewHistory"]] = relationship(back_populates="issue", cascade="all, delete-orphan")
 
 
@@ -146,4 +147,3 @@ class ReviewHistory(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text)
 
     issue: Mapped[Issue] = relationship(back_populates="history")
-

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type UserStatus = "ACTIVE" | "LOCKED";
 type Developer = { id: number; name: string; email: string; initials: string; projects: number; analyses: number; lastActive: string; status: UserStatus; };
@@ -23,6 +24,7 @@ const navTargets: Record<string, string> = { "Tổng quan": "admin-overview", "N
 function Icon({ children }: { children: string }) { return <span className="admin-icon">{children}</span>; }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [users, setUsers] = useState(seedUsers);
   const [activeNav, setActiveNav] = useState("Tổng quan");
   const [query, setQuery] = useState("");
@@ -38,7 +40,7 @@ export default function AdminPage() {
   function addUser(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get("name") || "").trim(); const email = String(data.get("email") || "").trim(); if (!name || !email) return; const initials = name.split(" ").slice(-2).map((part) => part[0]).join("").toUpperCase(); setUsers((current) => [{ id: Date.now(), name, email, initials, projects: 0, analyses: 0, lastActive: "Chưa đăng nhập", status: "ACTIVE" }, ...current]); setNotice(`Đã tạo tài khoản Developer cho ${name}.`); setShowCreate(false); }
 
   return <main className="admin-shell">
-    <aside className="admin-sidebar"><div className="brand"><span className="brand-mark">✦</span><span>sentinel</span><small>AI CODE REVIEW</small></div><div className="admin-workspace"><span className="admin-avatar admin-avatar-gold">A</span><div><b>Administration</b><small>System control</small></div><span>⌄</span></div><div className="admin-role"><span>●</span> ADMIN CONSOLE</div><nav>{navItems.map((item, index) => <button key={item} className={activeNav === item ? "nav-item active" : "nav-item"} onClick={() => navigate(item)}><Icon>{["▦", "♙", "⌘", "◫", "◷"][index]}</Icon>{item}{item === "Người dùng" && <i>{activeUsers}</i>}</button>)}</nav><div className="admin-side-bottom"><div className="security-note"><span>●</span><div><b>Hệ thống bảo mật</b><small>RBAC · Audit log active</small></div></div><a className="admin-profile" href="/login"><span className="admin-avatar">AD</span><div><b>System Admin</b><small>Quản trị viên</small></div><span>···</span></a></div></aside>
+    <aside className="admin-sidebar"><div className="brand"><span className="brand-mark">✦</span><span>sentinel</span><small>AI CODE REVIEW</small></div><div className="admin-workspace"><span className="admin-avatar admin-avatar-gold">A</span><div><b>Administration</b><small>System control</small></div><span>⌄</span></div><div className="admin-role"><span>●</span> ADMIN CONSOLE</div><nav>{navItems.map((item, index) => <button key={item} className={activeNav === item ? "nav-item active" : "nav-item"} onClick={() => navigate(item)}><Icon>{["▦", "♙", "⌘", "◫", "◷"][index]}</Icon>{item}{item === "Người dùng" && <i>{activeUsers}</i>}</button>)}</nav><div className="admin-side-bottom"><div className="security-note"><span>●</span><div><b>Hệ thống bảo mật</b><small>RBAC · Audit log active</small></div></div><div className="admin-profile-menu"><div className="admin-profile"><span className="admin-avatar">AD</span><div><b>System Admin</b><small>Quản trị viên</small></div><span>···</span></div><button className="logout-button" onClick={() => router.push("/admin/login")}>↪ Đăng xuất</button></div></div></aside>
     <section className="admin-content"><header className="admin-topbar"><div><span className="admin-kicker">ADMINISTRATION</span><h1>Trung tâm quản trị</h1></div><div className="admin-top-actions"><span className="admin-live"><i />Hệ thống ổn định</span><button className="admin-outline" onClick={() => setNotice("Đã đồng bộ dữ liệu hệ thống mới nhất.")}>↻ Đồng bộ</button><button className="admin-primary" onClick={() => setShowCreate(true)}>＋ Thêm Developer</button></div></header>
       <div className="admin-notice">✦ {notice}</div>
       <section className="admin-stats" id="admin-overview"><article><span className="stat-symbol users">♙</span><div><small>TỔNG DEVELOPER</small><b>{users.length}</b><p><i>↑ 12%</i> so với tháng trước</p></div></article><article><span className="stat-symbol projects">⌘</span><div><small>TỔNG PROJECT</small><b>{totalProjects}</b><p><i>↑ 8%</i> so với tháng trước</p></div></article><article><span className="stat-symbol scan">✦</span><div><small>LẦN PHÂN TÍCH AI</small><b>{totalAnalyses}</b><p><i>↑ 18%</i> so với tháng trước</p></div></article><article><span className="stat-symbol success">✓</span><div><small>TỶ LỆ FIX THÀNH CÔNG</small><b>82<em>%</em></b><p><i>↑ 4.6%</i> so với tháng trước</p></div></article></section>

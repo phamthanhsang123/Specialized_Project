@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: sentinel-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_NAME
+        value: Sentinel Backend
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
+      - key: SEED_DEMO_DATA
+        value: true
+      - key: DATABASE_URL
+        sync: false
+

@@ -3,3 +3,9 @@ node_modules/
 out/
 .env*.local
 *.log
+backend/.env
+backend/.venv/
+backend/sentinel.db
+backend/storage/
+__pycache__/
+*.pyc

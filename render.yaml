@@ -10,7 +10,7 @@ services:
       - key: APP_NAME
         value: Sentinel Backend
       - key: CORS_ORIGINS
-        value: http://localhost:3000
+        value: "*"
       - key: SEED_DEMO_DATA
         value: true
       - key: DATABASE_URL

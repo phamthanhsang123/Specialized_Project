@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { initialIssues, project, proposals, sourceFiles, testRuns } from "../lib/mock-data";
 import type { Issue, IssueStatus, Severity } from "../lib/types";
 
@@ -45,6 +46,7 @@ function highlightPython(line: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [activeNav, setActiveNav] = useState("Tổng quan");
   const [issues, setIssues] = useState(initialIssues);
   const [selectedIssueId, setSelectedIssueId] = useState("ISS-001");
@@ -81,7 +83,7 @@ export default function Home() {
       <div className="brand"><span className="brand-mark"><Icon name="spark" size={20} /></span><span>sentinel</span><small>AI CODE REVIEW</small></div>
       <div className="workspace-switch"><span className="workspace-dot">S</span><div><b>Software Lab</b><small>Nhóm Đồ án CN</small></div><Icon name="chevron" size={15} /></div>
       <nav>{navItems.map((item, index) => <button key={item} className={activeNav === item ? "nav-item active" : "nav-item"} onClick={() => navigate(item)}><Icon name={["grid", "code", "spark", "flask", "clock"][index]} />{item}{item === "Phân tích AI" && <span className="nav-badge">{counts.pending}</span>}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="security-note"><span>●</span><div><b>Sandbox bảo mật</b><small>Docker isolation active</small></div></div><button className="profile"><span className="avatar">NT</span><div><b>Nguyễn Thành</b><small>Developer</small></div><Icon name="dots" size={18} /></button></div>
+      <div className="sidebar-bottom"><div className="security-note"><span>●</span><div><b>Sandbox bảo mật</b><small>Docker isolation active</small></div></div><div className="profile-menu"><button className="profile"><span className="avatar">NT</span><div><b>Nguyễn Thành</b><small>Developer</small></div><Icon name="dots" size={18} /></button><button className="logout-button" onClick={() => router.push("/login")}>↪ Đăng xuất</button></div></div>
     </aside>
 
     <section className="content">

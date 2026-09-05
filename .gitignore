@@ -1,5 +1,9 @@
 node_modules/
 .next/
+.next-dev/
+*.err
+test-results/
+playwright-report/
 out/
 .env*.local
 *.log

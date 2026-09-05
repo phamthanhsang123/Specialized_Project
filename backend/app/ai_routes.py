@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .auth import get_current_user
+from .auth import get_current_user, require_developer
 from .config import get_settings
 from .database import get_db
 from .models import Issue, Project, TestResult, User
@@ -10,7 +10,7 @@ from .services.source import issue_to_out, proposal_to_out
 from .services.testing import TestingError
 
 
-router = APIRouter(tags=["AI"], dependencies=[Depends(get_current_user)])
+router = APIRouter(tags=["AI"], dependencies=[Depends(require_developer)])
 
 
 def project_access(project_id: str, db: Session, user: User) -> Project:

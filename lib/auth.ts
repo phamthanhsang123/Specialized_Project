@@ -2,8 +2,25 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, apiFetch, clearToken, errorMessage, getToken, isAborted, SESSION_EXPIRED_EVENT } from "./api";
+import {
+  ApiError,
+  apiFetch,
+  abortSessionRequests,
+  clearToken,
+  errorMessage,
+  getToken,
+  isAborted,
+  SESSION_EXPIRED_EVENT,
+} from "./api";
 import type { Role, User } from "./types";
+
+export function landingPath(user: User) {
+  return user.mustChangePassword
+    ? "/change-password"
+    : user.role === "admin"
+      ? "/admin"
+      : "/";
+}
 
 export function useSession(role: Role) {
   const router = useRouter();
@@ -23,20 +40,30 @@ export function useSession(role: Role) {
     if (!getToken()) {
       router.replace(loginPath);
     } else {
-      apiFetch<User>("/auth/me", { signal: controller.signal }).then((current) => {
-        if (controller.signal.aborted) return;
-        if (!current.isActive) { clearToken(); expired(); return; }
-        if (current.role !== role) {
-          router.replace(current.role === "admin" ? "/admin" : "/");
-          return;
-        }
-        setUser(current);
-      }).catch((error: unknown) => {
-        if (isAborted(error)) return;
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          clearToken(); expired();
-        } else setSessionError(errorMessage(error));
-      });
+      apiFetch<User>("/auth/me", { signal: controller.signal })
+        .then((current) => {
+          if (controller.signal.aborted) return;
+          if (!current.isActive) {
+            clearToken();
+            expired();
+            return;
+          }
+          if (current.mustChangePassword || current.role !== role) {
+            router.replace(landingPath(current));
+            return;
+          }
+          setUser(current);
+        })
+        .catch((error: unknown) => {
+          if (isAborted(error)) return;
+          if (
+            error instanceof ApiError &&
+            (error.status === 401 || error.status === 403)
+          ) {
+            clearToken();
+            expired();
+          } else setSessionError(errorMessage(error));
+        });
     }
     return () => {
       controller.abort();
@@ -45,10 +72,24 @@ export function useSession(role: Role) {
   }, [attempt, loginPath, role, router]);
 
   const logout = useCallback(async () => {
-    try { await apiFetch("/auth/logout", { method: "POST" }); }
-    catch { /* End the local session even when the API is temporarily unreachable. */ }
-    finally { clearToken(); setUser(null); router.replace(loginPath); }
+    abortSessionRequests();
+    // Capture the existing token synchronously before clearing local state.
+    const revocation = apiFetch("/auth/logout", {
+      method: "POST",
+      timeoutMs: 5000,
+      sessionBound: false,
+    });
+    clearToken();
+    setUser(null);
+    router.replace(loginPath);
+    // Best effort server revocation; offline sessions still expire server-side.
+    void revocation.catch(() => {});
   }, [loginPath, router]);
 
-  return { user, sessionError, logout, retrySession: () => setAttempt((value) => value + 1) };
+  return {
+    user,
+    sessionError,
+    logout,
+    retrySession: () => setAttempt((value) => value + 1),
+  };
 }

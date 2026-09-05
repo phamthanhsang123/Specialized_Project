@@ -61,7 +61,7 @@ def test_login_password_session_expiry_and_logout(auth_api):
     assert client.post("/api/auth/login", json={"email": "alice@example.com", "password": "wrong"}).status_code == 401
     assert client.post("/api/auth/login", json={"email": "absent@example.com", "password": "wrong"}).status_code == 401
     payload, headers = authenticate(client, " ALICE@EXAMPLE.COM ")
-    assert payload["user"] == {"id": "alice", "email": "alice@example.com", "fullName": "Alice", "role": "developer", "isActive": True}
+    assert payload["user"] == {"id": "alice", "email": "alice@example.com", "fullName": "Alice", "role": "developer", "isActive": True, "mustChangePassword": False}
     assert client.get("/api/auth/me", headers=headers).json() == payload["user"]
     with sessions() as db:
         session = db.query(AuthSession).one()

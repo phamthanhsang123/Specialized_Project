@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .config import get_settings
 from .database import get_db
 from .models import AuthSession, User
+from .audit import record_event
 
 
 PASSWORD_ITERATIONS = 600_000
@@ -70,6 +71,7 @@ def user_to_out(user: User) -> dict:
         "fullName": user.full_name or user.email,
         "role": user.role,
         "isActive": user.is_active,
+        "mustChangePassword": user.must_change_password,
     }
 
 
@@ -96,16 +98,28 @@ def get_current_session(
     return session
 
 
-def get_current_user(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)) -> User:
+def get_authenticated_user(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)) -> User:
     user = db.get(User, session.user_id)
     if user is None:
         raise unauthorized()
     return user
 
 
+def get_current_user(user: User = Depends(get_authenticated_user)) -> User:
+    if user.must_change_password:
+        raise HTTPException(status_code=403, detail="Bạn cần đổi mật khẩu trước khi tiếp tục")
+    return user
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Chức năng chỉ dành cho Admin")
+    return user
+
+
+def require_developer(user: User = Depends(get_current_user)) -> User:
+    if user.role != "developer":
+        raise HTTPException(status_code=403, detail="Thao tác mã nguồn chỉ dành cho Developer")
     return user
 
 
@@ -123,8 +137,28 @@ def login(payload: LoginInput, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/me")
-def me(user: User = Depends(get_current_user)) -> dict:
+def me(user: User = Depends(get_authenticated_user)) -> dict:
     return user_to_out(user)
+
+
+class ChangePasswordInput(BaseModel):
+    currentPassword: str = Field(min_length=1, max_length=1024)
+    newPassword: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/change-password")
+def change_password(payload: ChangePasswordInput, user: User = Depends(get_authenticated_user), db: Session = Depends(get_db)) -> dict:
+    if not verify_password(payload.currentPassword, user.password_hash):
+        raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không đúng")
+    if payload.currentPassword == payload.newPassword:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải khác mật khẩu hiện tại")
+    user.password_hash = hash_password(payload.newPassword)
+    user.must_change_password = False
+    db.query(AuthSession).filter(AuthSession.user_id == user.id).delete(synchronize_session=False)
+    record_event(db, "PASSWORD_CHANGED", actor_id=user.id)
+    # Require a new login: no replacement token can be lost on an uncertain response.
+    db.commit()
+    return {"message": "Đã đổi mật khẩu. Vui lòng đăng nhập lại."}
 
 
 @router.post("/logout")

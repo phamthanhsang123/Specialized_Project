@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Fonts are bundled via @fontsource in layout.tsx, including Vietnamese glyphs. */
 
 :root { --ink:#17213a; --muted:#71809b; --line:#e9edf5; --navy:#13213c; --blue:#336af5; --blue-soft:#eef3ff; --surface:#fff; --bg:#f6f8fc; --red:#e24b4a; --orange:#e28a2e; --green:#159c70; --purple:#8158dc; }
 * { box-sizing:border-box; }

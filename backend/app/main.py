@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .admin import router as admin_router
 from .ai_routes import router as ai_router
-from .auth import bootstrap_admin, get_current_user, hash_password, router as auth_router
+from .auth import bootstrap_admin, get_current_user, require_developer, hash_password, router as auth_router
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
 from .models import CodeVersion, Issue, Project, SourceFile, TestResult, User, ensure_schema_compatibility
@@ -172,6 +172,8 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         return f"{prefix}{value}"
 
     def add(method: Callable, route: str, **kwargs) -> Callable:
+        if method != route_app.get:
+            kwargs["dependencies"] = [*kwargs.get("dependencies", []), Depends(require_developer)]
         return method(path(route), **kwargs)
 
     @add(route_app.get, "/health")

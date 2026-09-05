@@ -28,6 +28,7 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32), default="developer", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     projects: Mapped[list["Project"]] = relationship(back_populates="owner")
     sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -186,7 +187,7 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     proposals remain readable. No table or user data is replaced.
     """
     additions = {
-        "users": {"is_active": "BOOLEAN NOT NULL DEFAULT TRUE"},
+        "users": {"is_active": "BOOLEAN NOT NULL DEFAULT TRUE", "must_change_password": "BOOLEAN NOT NULL DEFAULT FALSE"},
         "fix_proposals": {"base_source_hash": "VARCHAR(64)"},
     }
     with engine.begin() as connection:

@@ -9,3 +9,5 @@ backend/sentinel.db
 backend/storage/
 __pycache__/
 *.pyc
+.pytest_cache/
+*.tsbuildinfo

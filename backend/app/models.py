@@ -1,8 +1,10 @@
+import json
 from datetime import datetime
 from typing import Optional
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, inspect, select, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -25,8 +27,21 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str | None] = mapped_column(String(255))
     password_hash: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32), default="developer", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
 
     projects: Mapped[list["Project"]] = relationship(back_populates="owner")
+    sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class AuthSession(Base, TimestampMixin):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: new_id("ses"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="sessions")
 
 
 class Project(Base, TimestampMixin):
@@ -55,7 +70,7 @@ class SourceFile(Base, TimestampMixin):
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="files")
-    issues: Mapped[list["Issue"]] = relationship(back_populates="file")
+    issues: Mapped[list["Issue"]] = relationship(back_populates="file", cascade="all, delete-orphan")
 
 
 class CodeVersion(Base, TimestampMixin):
@@ -85,7 +100,8 @@ class Issue(Base, TimestampMixin):
     impact: Mapped[str] = mapped_column(Text, nullable=False)
     line_start: Mapped[int] = mapped_column(Integer, nullable=False)
     line_end: Mapped[int] = mapped_column(Integer, nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, default=0.9, nullable=False)
+    # Zero means uncalibrated; public responses expose it as null, never a made-up score.
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="issues")
@@ -105,6 +121,7 @@ class FixProposal(Base, TimestampMixin):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    base_source_hash: Mapped[str | None] = mapped_column(String(64))
 
     issue: Mapped[Issue] = relationship(back_populates="proposal")
 
@@ -147,3 +164,64 @@ class ReviewHistory(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text)
 
     issue: Mapped[Issue] = relationship(back_populates="history")
+
+
+class AuditEvent(Base):
+    """Independent activity snapshots survive source and account lifecycle changes."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: new_id("evt"))
+    actor_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    project_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True, nullable=False)
+
+
+def ensure_schema_compatibility(engine: Engine) -> None:
+    """Apply additive changes to databases created before authentication and patch checks.
+
+    Call after Base.metadata.create_all(). Existing users stay active and legacy
+    proposals remain readable. No table or user data is replaced.
+    """
+    additions = {
+        "users": {"is_active": "BOOLEAN NOT NULL DEFAULT TRUE"},
+        "fix_proposals": {"base_source_hash": "VARCHAR(64)"},
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        for table_name, columns in additions.items():
+            if not inspector.has_table(table_name):
+                continue
+            existing = {column["name"] for column in inspector.get_columns(table_name)}
+            for column_name, definition in columns.items():
+                if column_name not in existing:
+                    connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+        # Preserve reviews created before the durable audit table was introduced.
+        # Deterministic IDs make this backfill safe to repeat at every startup.
+        if all(inspector.has_table(name) for name in ("audit_events", "review_history", "issues", "files")):
+            recorded_review_ids = set()
+            event_ids = set()
+            for event_id, detail in connection.execute(select(AuditEvent.id, AuditEvent.detail)):
+                event_ids.add(event_id)
+                try:
+                    snapshot = json.loads(detail)
+                except (ValueError, TypeError):
+                    continue
+                if isinstance(snapshot, dict):
+                    recorded_review_ids.add(snapshot.get("review_id"))
+            reviews = connection.execute(select(
+                ReviewHistory.id, ReviewHistory.issue_id, ReviewHistory.action,
+                ReviewHistory.reviewer_id, ReviewHistory.created_at,
+                Issue.project_id, Issue.issue_type, SourceFile.path,
+            ).join(Issue, ReviewHistory.issue_id == Issue.id).join(SourceFile, Issue.file_id == SourceFile.id)).mappings()
+            for review in reviews:
+                event_id = f"evt_{uuid5(NAMESPACE_URL, 'sentinel:review:' + review['id']).hex}"
+                if event_id not in event_ids and review["id"] not in recorded_review_ids:
+                    connection.execute(AuditEvent.__table__.insert().values(
+                        id=event_id, actor_id=review["reviewer_id"], project_id=review["project_id"],
+                        action=review["action"], created_at=review["created_at"],
+                        detail=json.dumps({"issue_id": review["issue_id"], "type": review["issue_type"],
+                                           "file_path": review["path"], "review_id": review["id"]}, ensure_ascii=False),
+                    ))

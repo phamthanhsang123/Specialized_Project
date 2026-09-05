@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 Severity = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
-IssueStatus = Literal["PENDING", "ACCEPTED", "REJECTED", "APPLIED", "VERIFIED"]
+IssueStatus = Literal["PENDING", "ACCEPTED", "REJECTED", "APPLIED", "VERIFIED", "FAILED"]
 TestStatus = Literal["PASS", "FAIL", "RUNNING"]
 
 
@@ -45,7 +45,7 @@ class IssueOut(BaseModel):
     type: str
     severity: Severity
     description: str
-    confidence: float
+    confidence: float | None = None
     status: IssueStatus
     explanation: str
     impact: str
@@ -69,6 +69,7 @@ class TestRunOut(BaseModel):
     errors: int
     duration: str
     createdAt: datetime
+    output: str | None = None
 
 
 class VersionOut(BaseModel):

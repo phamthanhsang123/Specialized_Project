@@ -1,52 +1,335 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-
-type UserStatus = "ACTIVE" | "LOCKED";
-type Developer = { id: number; name: string; email: string; initials: string; projects: number; analyses: number; lastActive: string; status: UserStatus; };
-
-const seedUsers: Developer[] = [
-  { id: 1, name: "Nguyễn Thành", email: "developer@sentinel.local", initials: "NT", projects: 4, analyses: 26, lastActive: "2 phút trước", status: "ACTIVE" },
-  { id: 2, name: "Trần Minh Anh", email: "minhanh@sentinel.local", initials: "MA", projects: 3, analyses: 19, lastActive: "35 phút trước", status: "ACTIVE" },
-  { id: 3, name: "Lê Hoàng Nam", email: "hoangnam@sentinel.local", initials: "HN", projects: 1, analyses: 7, lastActive: "Hôm qua", status: "LOCKED" },
-  { id: 4, name: "Phạm Thu Hà", email: "thuha@sentinel.local", initials: "TH", projects: 5, analyses: 41, lastActive: "Hôm qua", status: "ACTIVE" },
-];
-const activities = [
-  ["NT", "Nguyễn Thành", "đã áp dụng 4 patch vào", "ShopSafe API", "2 phút trước"],
-  ["TH", "Phạm Thu Hà", "đã hoàn tất quét AI cho", "Inventory Core", "18 phút trước"],
-  ["MA", "Trần Minh Anh", "đã tạo project", "Invoice Service", "1 giờ trước"],
-  ["HN", "Lê Hoàng Nam", "đã bị khóa tài khoản bởi", "Admin", "Hôm qua"],
-];
-const navItems = ["Tổng quan", "Người dùng", "Dự án", "Thống kê", "Hoạt động"];
-const navTargets: Record<string, string> = { "Tổng quan": "admin-overview", "Người dùng": "users", "Dự án": "projects", "Thống kê": "statistics", "Hoạt động": "activities" };
-
-function Icon({ children }: { children: string }) { return <span className="admin-icon">{children}</span>; }
-
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch, errorMessage, isAborted } from "../../lib/api";
+import { useSession } from "../../lib/auth";
+import type { AdminOverview, AdminUser } from "../../lib/types";
+import { dateLabel, Empty, Icon, initials, SessionGate } from "../components/ui";
+const navigation = [{
+  id: "admin-overview",
+  label: "Tổng quan",
+  icon: "grid"
+}, {
+  id: "users",
+  label: "Người dùng",
+  icon: "code"
+}, {
+  id: "projects",
+  label: "Project",
+  icon: "folder"
+}, {
+  id: "statistics",
+  label: "Thống kê",
+  icon: "spark"
+}, {
+  id: "activities",
+  label: "Hoạt động",
+  icon: "clock"
+}];
+const percentage = (value: number | null | undefined) => value == null ? "Chưa có dữ liệu" : `${Math.round(value * 100)}%`;
 export default function AdminPage() {
-  const router = useRouter();
-  const [users, setUsers] = useState(seedUsers);
-  const [activeNav, setActiveNav] = useState("Tổng quan");
+  const {
+    user,
+    sessionError,
+    logout,
+    retrySession
+  } = useSession("admin");
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [activeNav, setActiveNav] = useState("admin-overview");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | UserStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "LOCKED">("ALL");
   const [showCreate, setShowCreate] = useState(false);
-  const [notice, setNotice] = useState("Hệ thống hoạt động bình thường. Dữ liệu được cập nhật theo thời gian thực.");
-  const visibleUsers = useMemo(() => users.filter((user) => (statusFilter === "ALL" || user.status === statusFilter) && `${user.name} ${user.email}`.toLowerCase().includes(query.toLowerCase())), [users, statusFilter, query]);
-  const activeUsers = users.filter((user) => user.status === "ACTIVE").length;
-  const totalProjects = users.reduce((sum, user) => sum + user.projects, 0);
-  const totalAnalyses = users.reduce((sum, user) => sum + user.analyses, 0);
-  function navigate(item: string) { setActiveNav(item); document.getElementById(navTargets[item])?.scrollIntoView({ behavior: "smooth", block: "start" }); }
-  function toggleUser(id: number) { setUsers((current) => current.map((user) => user.id === id ? { ...user, status: user.status === "ACTIVE" ? "LOCKED" : "ACTIVE" } : user)); const user = users.find((item) => item.id === id); setNotice(`${user?.name}: tài khoản đã được ${user?.status === "ACTIVE" ? "khóa" : "mở"}.`); }
-  function addUser(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get("name") || "").trim(); const email = String(data.get("email") || "").trim(); if (!name || !email) return; const initials = name.split(" ").slice(-2).map((part) => part[0]).join("").toUpperCase(); setUsers((current) => [{ id: Date.now(), name, email, initials, projects: 0, analyses: 0, lastActive: "Chưa đăng nhập", status: "ACTIVE" }, ...current]); setNotice(`Đã tạo tài khoản Developer cho ${name}.`); setShowCreate(false); }
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState("");
+  const actionInProgress = useRef(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const refreshId = useRef(0);
+  const [updatedAt, setUpdatedAt] = useState("");
+  const loadOverview = useCallback(async (signal?: AbortSignal) => {
+    const serial = ++refreshId.current;
+    setLoading(true);
+    try {
+      const result = await apiFetch<AdminOverview>("/admin/overview", {
+        signal
+      });
+      if (signal?.aborted || serial !== refreshId.current) return;
+      setOverview(result);
+      setUpdatedAt(new Date().toLocaleTimeString("vi-VN"));
+    } catch (failure) {
+      if (!isAborted(failure) && serial === refreshId.current) setError(errorMessage(failure));
+    } finally {
+      if (!signal?.aborted && serial === refreshId.current) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
+    void loadOverview(controller.signal);
+    return () => controller.abort();
+  }, [user, loadOverview]);
+  const visibleUsers = useMemo(() => (overview?.users ?? []).filter(item => {
+    const matchesQuery = `${item.fullName} ${item.email}`.toLowerCase().includes(query.toLowerCase().trim());
+    return matchesQuery && (statusFilter === "ALL" || item.isActive === (statusFilter === "ACTIVE"));
+  }), [overview, query, statusFilter]);
+  function navigate(id: string) {
+    setActiveNav(id);
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+  async function toggleUser(target: AdminUser) {
+    if (actionInProgress.current) return;
+    actionInProgress.current = true;
+    setBusy(target.id);
+    setError("");
+    setNotice("");
+    try {
+      await apiFetch(`/admin/users/${encodeURIComponent(target.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: !target.isActive
+        })
+      });
+      setNotice(`Đã ${target.isActive ? "khóa" : "mở khóa"} tài khoản ${target.email}.`);
+      await loadOverview();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
+  async function addUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (actionInProgress.current) return;
+    const values = new FormData(event.currentTarget);
+    const payload = {
+      fullName: String(values.get("fullName")).trim(),
+      email: String(values.get("email")).trim(),
+      password: String(values.get("password"))
+    };
+    actionInProgress.current = true;
+    setBusy("create");
+    setError("");
+    setNotice("");
+    try {
+      await apiFetch("/admin/users", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      setShowCreate(false);
+      setNotice(`Đã tạo tài khoản ${payload.email}.`);
+      await loadOverview();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
+  if (!user) return <SessionGate error={sessionError} retry={retrySession} logout={logout} />;
+  const metrics = overview?.metrics;
+  const disabled = loading || Boolean(busy);
+  return <main className="admin-shell connected-admin">
+    <aside className="admin-sidebar">
+      <div className="brand">
+        <span className="brand-mark"><Icon name="spark" size={20} /></span>
+        <span>sentinel</span>
+        <small>ADMIN CONSOLE</small>
+      </div>
+      <div className="admin-workspace">
+        <span className="admin-avatar admin-avatar-gold">S</span>
+        <div>
+          <b>Quản trị hệ thống</b>
+          <small>Admin workspace</small>
+        </div>
+      </div>
+      <nav aria-label="Điều hướng Admin">
+        {navigation.map(item => <button key={item.id} title={item.label} aria-label={item.label} className={`nav-item${activeNav === item.id ? " active" : ""}`} onClick={() => navigate(item.id)}>
+          <Icon name={item.icon} />
+          <span className="nav-label">{item.label}</span>
+        </button>)}
+      </nav>
+      <div className="admin-side-bottom"><div className="admin-profile-menu">
+          <div className="admin-profile">
+            <span className="admin-avatar">{initials(user.fullName)}</span>
+            <div>
+              <b>{user.fullName}</b>
+              <small>Quản trị viên</small>
+            </div>
+          </div>
+          <button className="logout-button" onClick={() => void logout()}>↪ Đăng xuất</button>
+        </div></div>
+    </aside>
 
-  return <main className="admin-shell">
-    <aside className="admin-sidebar"><div className="brand"><span className="brand-mark">✦</span><span>sentinel</span><small>AI CODE REVIEW</small></div><div className="admin-workspace"><span className="admin-avatar admin-avatar-gold">A</span><div><b>Administration</b><small>System control</small></div><span>⌄</span></div><div className="admin-role"><span>●</span> ADMIN CONSOLE</div><nav>{navItems.map((item, index) => <button key={item} className={activeNav === item ? "nav-item active" : "nav-item"} onClick={() => navigate(item)}><Icon>{["▦", "♙", "⌘", "◫", "◷"][index]}</Icon>{item}{item === "Người dùng" && <i>{activeUsers}</i>}</button>)}</nav><div className="admin-side-bottom"><div className="security-note"><span>●</span><div><b>Hệ thống bảo mật</b><small>RBAC · Audit log active</small></div></div><div className="admin-profile-menu"><div className="admin-profile"><span className="admin-avatar">AD</span><div><b>System Admin</b><small>Quản trị viên</small></div><span>···</span></div><button className="logout-button" onClick={() => router.push("/admin/login")}>↪ Đăng xuất</button></div></div></aside>
-    <section className="admin-content"><header className="admin-topbar"><div><span className="admin-kicker">ADMINISTRATION</span><h1>Trung tâm quản trị</h1></div><div className="admin-top-actions"><span className="admin-live"><i />Hệ thống ổn định</span><button className="admin-outline" onClick={() => setNotice("Đã đồng bộ dữ liệu hệ thống mới nhất.")}>↻ Đồng bộ</button><button className="admin-primary" onClick={() => setShowCreate(true)}>＋ Thêm Developer</button></div></header>
-      <div className="admin-notice">✦ {notice}</div>
-      <section className="admin-grid" id="admin-overview"><article className="admin-panel users-panel" id="users"><div className="admin-panel-head"><div><b>Quản lý Developer</b><small>{users.length} tài khoản trong hệ thống</small></div><button className="admin-text-button" onClick={() => navigate("Người dùng")}>Xem tất cả →</button></div><div className="user-controls"><label className="admin-search">⌕<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên hoặc email…" /></label><div className="status-tabs">{(["ALL", "ACTIVE", "LOCKED"] as const).map((status) => <button key={status} className={statusFilter === status ? "selected" : ""} onClick={() => setStatusFilter(status)}>{status === "ALL" ? "Tất cả" : status === "ACTIVE" ? "Đang hoạt động" : "Đã khóa"}</button>)}</div></div><div className="user-table"><div className="user-row table-header"><span>DEVELOPER</span><span>PROJECT</span><span>PHÂN TÍCH</span><span>HOẠT ĐỘNG</span><span /></div>{visibleUsers.map((user) => <div className="user-row" key={user.id}><div className="user-person"><span className="admin-avatar">{user.initials}</span><div><b>{user.name}</b><small>{user.email}</small></div></div><span>{user.projects}</span><span>{user.analyses}</span><div><b className={user.status === "ACTIVE" ? "user-active" : "user-locked"}>● {user.status === "ACTIVE" ? "Hoạt động" : "Đã khóa"}</b><small>{user.lastActive}</small></div><button className={user.status === "ACTIVE" ? "lock-button" : "unlock-button"} onClick={() => toggleUser(user.id)}>{user.status === "ACTIVE" ? "Khóa" : "Mở khóa"}</button></div>)}{visibleUsers.length === 0 && <p className="no-result">Không tìm thấy tài khoản phù hợp.</p>}</div></article>
-        <aside className="admin-right"><article className="admin-panel" id="projects"><div className="admin-panel-head"><div><b>Project gần đây</b><small>Toàn hệ thống</small></div><button className="admin-text-button" onClick={() => setNotice("Danh sách toàn bộ project sẽ được lấy từ GET /admin/projects.")}>Xem tất cả →</button></div>{[["ShopSafe API", "Nguyễn Thành", "12 issues", "5 phút trước"], ["Inventory Core", "Phạm Thu Hà", "8 issues", "18 phút trước"], ["Invoice Service", "Trần Minh Anh", "Đang quét", "1 giờ trước"]].map((project) => <div className="project-item" key={project[0]}><span>PY</span><div><b>{project[0]}</b><small>{project[1]} · {project[3]}</small></div><em>{project[2]}</em></div>)}</article><article className="admin-panel" id="statistics"><div className="admin-panel-head"><div><b>Hiệu quả AI</b><small>30 ngày gần nhất</small></div><span className="period">30 ngày⌄</span></div><div className="progress-group"><div><span>Issues được phát hiện</span><b>1,245</b></div><div className="progress"><i style={{ width: "88%" }} /></div><small>Precision 88% · Recall 84%</small></div><div className="progress-group"><div><span>Patch được xác minh</span><b>987</b></div><div className="progress green"><i style={{ width: "82%" }} /></div><small>Fix success rate 82%</small></div></article></aside></section>
-      <section className="admin-panel activity-panel" id="activities"><div className="admin-panel-head"><div><b>Hoạt động gần đây</b><small>Audit log toàn hệ thống</small></div><button className="admin-text-button" onClick={() => setNotice("Audit log đầy đủ sẽ được TV2 cung cấp qua GET /admin/audit-logs.")}>Xem lịch sử →</button></div><div className="activity-list">{activities.map((activity, index) => <div className="activity" key={`${activity[1]}-${index}`}><span className="admin-avatar">{activity[0]}</span><p><b>{activity[1]}</b> {activity[2]} <strong>{activity[3]}</strong></p><small>{activity[4]}</small></div>)}</div></section>
+    <section className="admin-content">
+      <header className="admin-topbar">
+        <div>
+          <span className="admin-kicker">ADMINISTRATION</span>
+          <h1>Trung tâm quản trị</h1>
+        </div>
+        <div className="admin-top-actions">
+          <span className="admin-live">{updatedAt ? `Cập nhật ${updatedAt}` : "Đang tải dữ liệu…"}</span>
+          <button className="admin-outline" disabled={disabled} onClick={() => {
+            setError("");
+            setNotice("");
+            void loadOverview();
+          }}>↻ {loading ? "Đang tải…" : "Đồng bộ"}</button>
+          <button className="admin-primary" disabled={disabled} onClick={() => {
+            setError("");
+            setShowCreate(true);
+          }}>＋ Thêm Developer</button>
+        </div>
+      </header>
+      {error && <div className="admin-notice toast-error" role="alert">
+        {error}
+        <button onClick={() => {
+          setError("");
+          void loadOverview();
+        }}>Thử lại</button>
+      </div>}
+      {notice && <div className="admin-notice" role="status">{notice}</div>}
+      {loading && !overview && <Empty>Đang tải dữ liệu quản trị…</Empty>}
+      {overview && <>
+        <section className="admin-stats" id="admin-overview" aria-label="Thống kê hệ thống">
+          <article>
+            <span className="stat-symbol users">♙</span>
+            <div>
+              <small>TÀI KHOẢN DEVELOPER</small>
+              <b>{metrics?.users}</b>
+              <p>{metrics?.activeUsers} tài khoản hoạt động</p>
+            </div>
+          </article>
+          <article>
+            <span className="stat-symbol projects">▱</span>
+            <div>
+              <small>PROJECT</small>
+              <b>{metrics?.projects}</b>
+              <p>Toàn hệ thống</p>
+            </div>
+          </article>
+          <article>
+            <span className="stat-symbol scan">⌕</span>
+            <div>
+              <small>VẤN ĐỀ</small>
+              <b>{metrics?.issues}</b>
+              <p>Kết quả quét đang lưu</p>
+            </div>
+          </article>
+          <article>
+            <span className="stat-symbol success">✓</span>
+            <div>
+              <small>LƯỢT KIỂM THỬ</small>
+              <b>{metrics?.testRuns}</b>
+              <p>{metrics?.verifiedIssues} vấn đề đã xác minh</p>
+            </div>
+          </article>
+        </section>
+        <section className="admin-grid">
+          <article className="admin-panel users-panel" id="users">
+            <div className="admin-panel-head"><div>
+                <b>Quản lý Developer</b>
+                <small>{overview.users.length} tài khoản trong hệ thống</small>
+              </div></div>
+            <div className="user-controls">
+              <label className="admin-search">
+                <span aria-hidden="true">⌕</span>
+                <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Tìm tên hoặc email…" aria-label="Tìm Developer" />
+              </label>
+              <div className="status-tabs">{(["ALL", "ACTIVE", "LOCKED"] as const).map(status => <button key={status} className={statusFilter === status ? "selected" : ""} onClick={() => setStatusFilter(status)}>{status === "ALL" ? "Tất cả" : status === "ACTIVE" ? "Hoạt động" : "Đã khóa"}</button>)}</div>
+            </div>
+            <div className="user-table"><div className="user-row table-header">
+                <span>DEVELOPER</span>
+                <span>PROJECT</span>
+                <span>VẤN ĐỀ</span>
+                <span>TRẠNG THÁI</span>
+                <span />
+              </div>
+              {visibleUsers.map(item => <div className="user-row" key={item.id}>
+                <div className="user-person">
+                  <span className="admin-avatar">{initials(item.fullName)}</span>
+                  <div>
+                    <b>{item.fullName}</b>
+                    <small>{item.email}</small>
+                  </div>
+                </div>
+                <span>{item.projectCount}</span>
+                <span>{item.issueCount}</span>
+                <div>
+                  <b className={item.isActive ? "user-active" : "user-locked"}>● {item.isActive ? "Hoạt động" : "Đã khóa"}</b>
+                  <small>Cập nhật {dateLabel(item.updatedAt)}</small>
+                </div>
+                <button className={item.isActive ? "lock-button" : "unlock-button"} disabled={disabled} onClick={() => void toggleUser(item)}>{busy === item.id ? "…" : item.isActive ? "Khóa" : "Mở khóa"}</button>
+              </div>)}
+              {!visibleUsers.length && <Empty>{overview.users.length ? "Không tìm thấy tài khoản phù hợp." : "Chưa có Developer. Tạo tài khoản để bắt đầu."}</Empty>}
+            </div>
+          </article>
+          <aside className="admin-right">
+            <article className="admin-panel" id="projects">
+              <div className="admin-panel-head"><div>
+                  <b>Project toàn hệ thống</b>
+                  <small>{overview.projects.length} project</small>
+                </div></div>
+              <div className="admin-project-list">{overview.projects.map(project => <div className="project-item" key={project.id}>
+                  <span>PY</span>
+                  <div>
+                    <b>{project.name}</b>
+                    <small>{project.ownerName} · {project.version}</small>
+                    <small>{dateLabel(project.updatedAt)}</small>
+                  </div>
+                  <em>{project.issueCount} vấn đề</em>
+                </div>)}</div>
+              {!overview.projects.length && <Empty>Chưa có project.</Empty>}
+            </article>
+            <article className="admin-panel" id="statistics">
+              <div className="admin-panel-head"><div>
+                  <b>Đánh giá AI</b>
+                  <small>Chỉ hiển thị khi đã có phép đo</small>
+                </div></div>
+              <dl className="metric-list">
+                <div>
+                  <dt>Precision</dt>
+                  <dd>{percentage(metrics?.precision)}</dd>
+                </div>
+                <div>
+                  <dt>Recall</dt>
+                  <dd>{percentage(metrics?.recall)}</dd>
+                </div>
+                <div>
+                  <dt>Tỷ lệ sửa thành công</dt>
+                  <dd>{percentage(metrics?.fixSuccessRate)}</dd>
+                </div>
+              </dl>
+              <p className="form-help panel-help">Các chỉ số cần được đo trên bộ dữ liệu có nhãn và kết quả kiểm thử của nhóm.</p>
+            </article>
+          </aside>
+        </section>
+        <section className="admin-panel activity-panel" id="activities">
+          <div className="admin-panel-head"><div>
+              <b>Hoạt động gần đây</b>
+              <small>Lịch sử đang được lưu trong hệ thống</small>
+            </div></div>
+          <div className="activity-list">{overview.activities.map(activity => <div className="activity" key={activity.id}>
+              <span className="admin-avatar">{initials(activity.actorName || "Hệ thống")}</span>
+              <p><b>{activity.actorName || "Hệ thống"}</b> · {activity.action}{activity.projectName && <> · <strong>{activity.projectName}</strong></>}</p>
+              <small>{dateLabel(activity.createdAt)}</small>
+            </div>)}</div>
+          {!overview.activities.length && <Empty>Chưa có hoạt động được ghi nhận.</Empty>}
+        </section>
+      </>}
     </section>
-    {showCreate && <div className="admin-modal-backdrop" onMouseDown={() => setShowCreate(false)}><form className="admin-modal" onSubmit={addUser} onMouseDown={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setShowCreate(false)}>×</button><span className="modal-symbol">♙</span><h2>Thêm Developer</h2><p>Tạo tài khoản mới để developer có thể quản lý project của riêng mình.</p><label>Họ và tên<input name="name" required placeholder="Ví dụ: Nguyễn Văn A" /></label><label>Email<input name="email" required type="email" placeholder="developer@email.com" /></label><button className="admin-primary" type="submit">Tạo tài khoản Developer</button></form></div>}
+    {showCreate && <div className="admin-modal-backdrop"><form className="admin-modal" onSubmit={addUser} role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+        <button type="button" className="modal-close" aria-label="Đóng" disabled={Boolean(busy)} onClick={() => setShowCreate(false)}>×</button>
+        <span className="modal-symbol">♙</span>
+        <h2 id="create-user-title">Thêm Developer</h2>
+        <p>Tạo tài khoản đăng nhập thật, dữ liệu được lưu trong hệ thống.</p>
+        <label>Họ và tên<input name="fullName" required maxLength={255} autoFocus placeholder="Nguyễn Văn A" disabled={Boolean(busy)} /></label>
+        <label>Email<input name="email" required type="email" maxLength={255} autoComplete="off" placeholder="developer@email.com" disabled={Boolean(busy)} /></label>
+        <label>Mật khẩu ban đầu<input name="password" required type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Ít nhất 8 ký tự" disabled={Boolean(busy)} /></label>
+        {error && <p className="error-text" role="alert">{error}</p>}
+        <button className="admin-primary" disabled={Boolean(busy)} type="submit">{busy ? "Đang tạo…" : "Tạo tài khoản Developer"}</button>
+      </form></div>}
   </main>;
 }

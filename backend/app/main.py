@@ -106,6 +106,28 @@ def health_check():
 }
 
 
+def upsert_demo_user(db: Session, email: str, name: str, role: str) -> User:
+    user = db.query(User).filter(User.email == email).first()
+    password_hash = hash_password("password")
+    if user is None:
+        user = User(
+            email=email,
+            full_name=name,
+            role=role,
+            password_hash=password_hash,
+            is_active=True,
+            must_change_password=False,
+        )
+        db.add(user)
+        return user
+    user.full_name = name
+    user.role = role
+    user.password_hash = password_hash
+    user.is_active = True
+    user.must_change_password = False
+    return user
+
+
 def ensure_schema_and_seed() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_schema_compatibility(engine)
@@ -114,12 +136,8 @@ def ensure_schema_and_seed() -> None:
         if not settings.seed_demo_data:
             db.commit()
             return
-        for email, name, role in (
-            ("admin@sentinel.local", "System Admin", "admin"),
-            ("developer@sentinel.local", "Demo Developer", "developer"),
-        ):
-            if not db.query(User).filter(User.email == email).first():
-                db.add(User(email=email, full_name=name, role=role, password_hash=hash_password("password"), is_active=True))
+        upsert_demo_user(db, "admin@sentinel.local", "System Admin", "admin")
+        upsert_demo_user(db, "developer@sentinel.local", "Demo Developer", "developer")
         db.flush()
         developer = db.query(User).filter(User.email == "developer@sentinel.local").one()
         project = db.get(Project, "prj_001")

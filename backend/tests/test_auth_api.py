@@ -377,7 +377,31 @@ def test_seed_is_opt_in_and_idempotent(auth_api, monkeypatch):
     with sessions() as db:
         assert db.query(User).count() == 5
         developer = db.query(User).filter(User.email == "developer@sentinel.local").one()
+        assert verify_password("password", developer.password_hash)
         assert db.get(Project, "prj_001").owner_id == developer.id
+
+
+def test_demo_seed_restores_demo_credentials_for_existing_local_database(auth_api, monkeypatch):
+    _, sessions, engine = auth_api
+    monkeypatch.setattr(main, "engine", engine)
+    monkeypatch.setattr(main, "SessionLocal", sessions)
+    monkeypatch.setattr(main.settings, "seed_demo_data", True)
+    monkeypatch.setattr(main.settings, "bootstrap_admin_email", None)
+    monkeypatch.setattr(main.settings, "bootstrap_admin_password", None)
+    with sessions() as db:
+        stale_hash = hash_password("old-password")
+        db.add(User(email="developer@sentinel.local", full_name="Old Demo", role="admin", is_active=False, must_change_password=True, password_hash=stale_hash))
+        db.commit()
+
+    main.ensure_schema_and_seed()
+
+    with sessions() as db:
+        developer = db.query(User).filter(User.email == "developer@sentinel.local").one()
+        assert developer.full_name == "Demo Developer"
+        assert developer.role == "developer"
+        assert developer.is_active is True
+        assert developer.must_change_password is False
+        assert verify_password("password", developer.password_hash)
 
 
 def test_bootstrap_admin_requires_explicit_credentials_and_never_resets_existing_password(auth_api):

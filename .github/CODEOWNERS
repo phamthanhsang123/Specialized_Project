@@ -1,0 +1,5 @@
+# All pull requests into main require the repository owner's review.
+* @phamthanhsang123
+
+# Ownership changes also require the owner's review.
+/.github/CODEOWNERS @phamthanhsang123

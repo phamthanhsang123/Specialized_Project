@@ -29,6 +29,7 @@ test("unsaved test is protected on selection, project switch, and logout", async
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Kiểm thử/ })
     .click();
+  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
   const editor = page.locator(".test-case-form textarea");
   await editor.fill("def test_draft(): assert 42");
   await expect(page.getByText("Chưa lưu", { exact: true })).toBeVisible();
@@ -49,6 +50,7 @@ test("unsaved test is protected on selection, project switch, and logout", async
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Kiểm thử/ })
     .click();
+  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
   await expect(editor).toHaveValue("def test_draft(): assert 42");
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator(".test-case-form select").selectOption("test_saved.py");
@@ -260,8 +262,10 @@ test("create, reject and error feedback preserve user control", async ({
     .getByRole("button", { name: /Vấn đề & bản sửa/ })
     .click();
   await page.getByRole("button", { name: "Từ chối", exact: true }).click();
-  await expect(page.locator(".decision")).toHaveText("Đã từ chối");
-  await expect(page.getByRole("button", { name: /Áp dụng 0/ })).toBeDisabled();
+  await expect(page.locator(".proposal-title-line .status")).toHaveText(
+    "Đã từ chối",
+  );
+  await expect(page.locator(".apply-section")).toHaveCount(0);
   expect(result.errors).toEqual([]);
 });
 
@@ -307,6 +311,7 @@ test("test comparison and save test use backend data; admin and login fit mobile
   await expect(page.locator(".comparison-cards article").last()).toContainText(
     "3/3 đạt",
   );
+  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
   await page
     .getByLabel("Nội dung pytest", { exact: true })
     .fill("def test_ok():\n    assert True");
@@ -387,6 +392,11 @@ async function workspace(page: Page, role = "developer") {
     name: "Payment API",
     language: "Python 3.12",
     version: "v1",
+    lastScannedVersion: "v1",
+    sourceFileCount: 1,
+    issueCount: 1,
+    pendingIssueCount: 1,
+    latestTestStatus: null,
     updatedAt: now,
   };
   let projects = [project];
@@ -450,10 +460,32 @@ async function workspace(page: Page, role = "developer") {
       };
     else if (path.endsWith("/test-runs")) result = [];
     else if (path.endsWith("/test-cases")) result = [];
+    else if (path.endsWith("/versions/v0/diff"))
+      result = {
+        version: "v0",
+        comparedWith: null,
+        changedFiles: [{ path: "payment.py", change: "ADDED" }],
+        diff: "--- a/payment.py\n+++ b/payment.py",
+      };
     else if (path.endsWith("/versions"))
       result = [
-        { id: "v2", version: project.version, createdAt: now },
-        { id: "v0", version: "v0", createdAt: now },
+        {
+          id: "v2",
+          version: project.version,
+          createdAt: now,
+          reason: "FIX_APPLIED",
+          fileCount: 1,
+          changedFileCount: 1,
+          createdBy: user.id,
+        },
+        {
+          id: "v0",
+          version: "v0",
+          createdAt: now,
+          reason: "INITIAL",
+          fileCount: 1,
+          changedFileCount: 1,
+        },
       ];
     else if (path.endsWith("/accept")) state = "ACCEPTED";
     else if (path.endsWith("/reject")) state = "REJECTED";
@@ -463,7 +495,10 @@ async function workspace(page: Page, role = "developer") {
     } else if (path.endsWith("/upload")) {
       uploaded = true;
       project.version = "v2";
+      project.lastScannedVersion = "v1";
     } else if (path.endsWith("/rollback")) project.version = "v3";
+    else if (path.endsWith("/scan"))
+      project.lastScannedVersion = project.version;
     else if (path === "/admin/overview")
       result = {
         users: [developer],
@@ -552,7 +587,21 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(page.locator(".review-workspace")).toHaveCount(0);
   await page.getByRole("button", { name: "Quét source", exact: true }).click();
   await expect(page.locator(".review-workspace")).toBeVisible();
-  await page.getByRole("tab", { name: "So sánh bản sửa" }).click();
+  await expect(page.locator(".issue-card p")).toHaveCount(0);
+  await expect(page.locator(".issue-card-meta")).toBeVisible();
+  await expect(page.locator(".issue-overview-blocks")).toBeVisible();
+  await expect(page.locator(".apply-section")).toHaveCount(0);
+  await expect(page.locator(".issue-summary-bar button")).toHaveCount(7);
+  await page
+    .locator(".issue-summary-bar")
+    .getByRole("button", { name: /Cao 1/ })
+    .click();
+  await expect(page.locator(".issue-card")).toHaveCount(1);
+  await page.screenshot({
+    path: "test-results/review-compact-vi.png",
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "Bản sửa" }).click();
   await expect(page.locator(".diff")).toBeVisible();
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
@@ -566,6 +615,13 @@ test("projects first, separate steps, review and apply, filtering and logout", a
     .getByRole("button", { name: /Lịch sử/ })
     .click();
   await expect(page.locator(".history-workspace")).toBeVisible();
+  await page.getByRole("button", { name: "Xem thay đổi" }).last().click();
+  await expect(page.getByRole("dialog")).toContainText("payment.py");
+  await page.screenshot({
+    path: "test-results/history-diff-vi.png",
+    fullPage: true,
+  });
+  await page.getByRole("dialog").getByRole("button", { name: "Đóng" }).click();
   await page.getByRole("button", { name: /Khôi phục nội dung v0/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Hủy" }).click();
@@ -583,7 +639,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
     .click();
   await page.getByLabel("Filter by severity").selectOption("HIGH");
   await expect(page.locator(".issue-card")).toHaveCount(1);
-  await expect(page.locator(".severity")).toHaveText("High");
+  await expect(page.locator(".issue-card .severity")).toHaveText("High");
   await page
     .getByLabel("Search issues", { exact: true })
     .fill("no matching issue");
@@ -617,6 +673,20 @@ test("upload confirmation, modal keyboard, fixed sidebar and narrow viewport", a
   await page.getByRole("button", { name: "Tải và thay source" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(result.uploaded()).toBe(true);
+  const workflow = page.locator(".workflow-rail");
+  await expect(workflow.locator(".workflow-step")).toHaveCount(4);
+  await expect(workflow.locator(".workflow-connector")).toHaveCount(3);
+  await expect(workflow.locator(".workflow-step").first()).toHaveClass(
+    /complete/,
+  );
+  await expect(workflow.locator(".workflow-step").nth(2)).toBeDisabled();
+  await expect(
+    workflow.getByRole("button", { name: /1\. Mã nguồn/ }),
+  ).toHaveAttribute("aria-current", "step");
+  await page.screenshot({
+    path: "test-results/workflow-real-state.png",
+    fullPage: true,
+  });
   const before = await page.locator(".sidebar").boundingBox();
   await page.locator(".content").evaluate((el) => {
     el.scrollTop = 10000;
@@ -629,6 +699,9 @@ test("upload confirmation, modal keyboard, fixed sidebar and narrow viewport", a
   await page.screenshot({ path: "test-results/source-vi.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".source-workspace")).toBeVisible();
+  for (const step of await workflow.locator(".workflow-step").all()) {
+    await expect(step).toBeInViewport();
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

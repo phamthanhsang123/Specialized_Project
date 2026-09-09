@@ -466,7 +466,7 @@ export function ProjectsPanel({
     <article className="admin-panel" id="projects">
       <div className="admin-panel-head">
         <div>
-          <b>{t("Project toàn hệ thống")}</b>
+          <b>{t("Dự án toàn hệ thống")}</b>
           <small>{t("Chỉ xem thông tin quản trị")}</small>
         </div>
       </div>

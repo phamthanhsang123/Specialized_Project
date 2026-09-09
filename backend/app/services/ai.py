@@ -160,6 +160,7 @@ def scan_with_ai(db: Session, project: Project) -> list[Issue]:
             db.add(FixProposal(issue=issue, **patch))
         created.append(issue)
     db.flush()
+    project.last_scanned_version = project.current_version
     db.expire(project, ["issues"])
     return created
 

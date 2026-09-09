@@ -25,6 +25,7 @@ import type {
   SourceFile,
   TestCase,
   TestRun,
+  VersionDiff,
 } from "../lib/types";
 import {
   dateLabel,
@@ -55,12 +56,42 @@ const statusLabel: Record<IssueStatus, string> = {
   VERIFIED: "Đã xác minh",
   FAILED: "Xác minh thất bại",
 };
+const workflowSteps = [
+  {
+    id: "source",
+    label: "Mã nguồn",
+    icon: "code",
+    description: "Tải và chuẩn bị file",
+  },
+  {
+    id: "analysis",
+    label: "Vấn đề & bản sửa",
+    icon: "spark",
+    description: "Phân tích và duyệt đề xuất",
+  },
+  {
+    id: "testing",
+    label: "Kiểm thử",
+    icon: "flask",
+    description: "Chạy test và xác minh",
+  },
+  {
+    id: "versions",
+    label: "Lịch sử",
+    icon: "clock",
+    description: "Phiên bản và khôi phục",
+  },
+];
+const workflowStateLabel = {
+  ready: "Sẵn sàng",
+  locked: "Chưa sẵn sàng",
+  processing: "Đang xử lý",
+  complete: "Hoàn tất",
+  failed: "Chưa đạt",
+};
 const navigation = [
   { id: "projects", label: "Dự án của tôi", icon: "folder" },
-  { id: "source", label: "Mã nguồn", icon: "code" },
-  { id: "analysis", label: "Vấn đề & bản sửa", icon: "spark" },
-  { id: "testing", label: "Kiểm thử", icon: "flask" },
-  { id: "versions", label: "Lịch sử", icon: "clock" },
+  ...workflowSteps,
 ];
 interface ProjectData {
   project: Project;
@@ -90,6 +121,17 @@ function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+function versionReasonLabel(reason?: string) {
+  if (reason?.startsWith("ROLLBACK:")) {
+    return t("Khôi phục từ {{version}}", {
+      version: reason.slice("ROLLBACK:".length),
+    });
+  }
+  if (reason === "INITIAL") return t("Phiên bản ban đầu");
+  if (reason === "FIX_APPLIED") return t("Áp dụng bản sửa đã duyệt");
+  if (reason === "SOURCE_UPLOADED") return t("Tải mã nguồn mới");
+  return t("Cập nhật mã nguồn");
+}
 export default function Home() {
   useTranslation();
   const { user, sessionError, logout, retrySession } = useSession("developer");
@@ -110,6 +152,7 @@ export default function Home() {
   const [notice, setNotice] = useMessage();
   const [error, setError] = useState("");
   const [activeNav, setActiveNav] = useState("projects");
+  const [processingStep, setProcessingStep] = useState("");
   const [selectedFile, setSelectedFile] = useState("");
   const [content, setContent] = useState<FileContent | null>(null);
   const [fileError, setFileError] = useState("");
@@ -119,14 +162,24 @@ export default function Home() {
   const [proposalLoading, setProposalLoading] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [issueSearch, setIssueSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<IssueStatus | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<
+    IssueStatus | "ALL" | "RESOLVED"
+  >("ALL");
   const [reviewTab, setReviewTab] = useState("explanation");
+  const [testSection, setTestSection] = useState<"results" | "cases">(
+    "results",
+  );
   const [filter, setFilter] = useState<Severity | "ALL">("ALL");
   const [showCreate, setShowCreate] = useState(false);
   const [showUpload, setShowUpload] = useState<UploadSelection | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<CodeVersion | null>(
     null,
   );
+  const [versionDiff, setVersionDiff] = useState<VersionDiff | null>(null);
+  const [versionDetailTarget, setVersionDetailTarget] =
+    useState<CodeVersion | null>(null);
+  const [versionDiffLoading, setVersionDiffLoading] = useState(false);
+  const [versionDiffError, setVersionDiffError] = useState("");
   const [testName, setTestName] = useState("test_project.py");
   const [testCode, setTestCode] = useState("");
   const [testEditorId, setTestEditorId] = useState("");
@@ -170,7 +223,10 @@ export default function Home() {
       issues.filter(
         (item) =>
           (filter === "ALL" || item.severity === filter) &&
-          (statusFilter === "ALL" || item.status === statusFilter) &&
+          (statusFilter === "ALL" ||
+            item.status === statusFilter ||
+            (statusFilter === "RESOLVED" &&
+              ["APPLIED", "VERIFIED"].includes(item.status))) &&
           `${item.type} ${item.description} ${item.filePath}`
             .toLocaleLowerCase()
             .includes(issueSearch.toLocaleLowerCase()),
@@ -186,11 +242,42 @@ export default function Home() {
     () => ({
       total: issues.length,
       critical: issues.filter((item) => item.severity === "CRITICAL").length,
+      high: issues.filter((item) => item.severity === "HIGH").length,
+      medium: issues.filter((item) => item.severity === "MEDIUM").length,
+      low: issues.filter((item) => item.severity === "LOW").length,
+      pending: issues.filter((item) => item.status === "PENDING").length,
       accepted: issues.filter((item) => item.status === "ACCEPTED").length,
+      resolved: issues.filter((item) =>
+        ["APPLIED", "VERIFIED"].includes(item.status),
+      ).length,
       verified: issues.filter((item) => item.status === "VERIFIED").length,
     }),
     [issues],
   );
+  const currentVersionTest = data?.tests.find(
+    (run) => run.version === data.project.version && run.status !== "RUNNING",
+  );
+  const sourceReady = Boolean(data?.files.length);
+  const analysisReady = Boolean(
+    sourceReady &&
+    (data?.project.lastScannedVersion === data?.project.version ||
+      data?.issues.some((issue) => issue.status === "APPLIED")),
+  );
+  function workflowState(id: string) {
+    if (processingStep === id) return "processing";
+    if (id === "source") return sourceReady ? "complete" : "ready";
+    if (id === "analysis") {
+      if (!sourceReady) return "locked";
+      return analysisReady ? "complete" : "ready";
+    }
+    if (id === "testing") {
+      if (!analysisReady) return "locked";
+      if (currentVersionTest?.status === "FAIL") return "failed";
+      return currentVersionTest?.status === "PASS" ? "complete" : "ready";
+    }
+    if (!data?.versions.length) return "locked";
+    return currentVersionTest?.status === "PASS" ? "complete" : "ready";
+  }
   const selectProject = useCallback(
     (id: string, approved = false) => {
       if (id && currentProject.current === id) {
@@ -216,12 +303,16 @@ export default function Home() {
       setStatusFilter("ALL");
       setIssueSearch("");
       setReviewTab("explanation");
+      setTestSection("results");
       setTestName("test_project.py");
       setTestCode("");
       setTestEditorId("");
       setTestBaseline({ name: "test_project.py", code: "" });
       setShowUpload(null);
       setRollbackTarget(null);
+      setVersionDiff(null);
+      setVersionDetailTarget(null);
+      setVersionDiffError("");
     },
     [confirmDiscard],
   );
@@ -392,6 +483,7 @@ export default function Home() {
     label: string,
     action: (id: string, signal: AbortSignal) => Promise<unknown>,
     success: string,
+    step = "",
   ) {
     const id = currentProject.current;
     if (!id || actionInProgress.current || stale || uncertain) return false;
@@ -402,6 +494,7 @@ export default function Home() {
     setError("");
     setNotice("");
     setRecovery("");
+    setProcessingStep(step);
     try {
       await action(id, controller.signal);
       if (currentProject.current === id) {
@@ -431,6 +524,7 @@ export default function Home() {
     } finally {
       actionInProgress.current = false;
       setBusy("");
+      setProcessingStep("");
       if (actionController.current === controller)
         actionController.current = null;
     }
@@ -597,8 +691,12 @@ export default function Home() {
           body: form,
         }),
       "Đã lưu source. Hãy quét để phân tích phiên bản mới.",
+      "source",
     );
-    if (success) setShowUpload(null);
+    if (success) {
+      setShowUpload(null);
+      setActiveNav("source");
+    }
   }
   async function reviewIssue(action: "accept" | "reject") {
     if (!selectedIssue) return;
@@ -612,6 +710,7 @@ export default function Home() {
       action === "accept"
         ? "Đã chấp nhận đề xuất. Nhấn Áp dụng để thay đổi source."
         : "Đã từ chối đề xuất.",
+      "analysis",
     );
   }
   async function saveTest(event: FormEvent<HTMLFormElement>) {
@@ -636,13 +735,36 @@ export default function Home() {
       setTestBaseline(saved);
     }
   }
+  async function viewVersion(version: CodeVersion) {
+    if (!projectId || versionDiffLoading) return;
+    setVersionDetailTarget(version);
+    setVersionDiff(null);
+    setVersionDiffError("");
+    setVersionDiffLoading(true);
+    try {
+      const result = await apiFetch<VersionDiff>(
+        `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(version.version)}/diff`,
+      );
+      if (currentProject.current === projectId) setVersionDiff(result);
+    } catch (failure) {
+      if (!isAborted(failure)) setVersionDiffError(errorMessage(failure));
+    } finally {
+      setVersionDiffLoading(false);
+    }
+  }
   useDialog(
-    showCreate || Boolean(showUpload) || Boolean(rollbackTarget),
+    showCreate ||
+      Boolean(showUpload) ||
+      Boolean(rollbackTarget) ||
+      Boolean(versionDetailTarget),
     Boolean(busy),
     () => {
       setShowCreate(false);
       setShowUpload(null);
       setRollbackTarget(null);
+      setVersionDetailTarget(null);
+      setVersionDiff(null);
+      setVersionDiffError("");
       setError("");
     },
   );
@@ -703,7 +825,9 @@ export default function Home() {
         </div>
       </aside>
       <section className="content" ref={viewport}>
-        <header className="workspace-header">
+        <header
+          className={`workspace-header${activeNav !== "projects" ? " project-header" : ""}`}
+        >
           <div className="breadcrumbs">
             <button
               className="text-link"
@@ -720,7 +844,62 @@ export default function Home() {
               </>
             )}
           </div>
+          {activeNav !== "projects" && (
+            <nav
+              className="workflow-tabs workflow-rail"
+              aria-label={t("Các bước trong dự án")}
+            >
+              {workflowSteps.map((item, index) => {
+                const state = workflowState(item.id);
+                const nextState = workflowSteps[index + 1]
+                  ? workflowState(workflowSteps[index + 1].id)
+                  : "locked";
+                return (
+                  <div className="workflow-stage" key={item.id}>
+                    <button
+                      className={`workflow-step ${state}`}
+                      disabled={Boolean(busy) || state === "locked"}
+                      aria-current={activeNav === item.id ? "step" : undefined}
+                      aria-label={`${index + 1}. ${t(item.label)} — ${t(workflowStateLabel[state])}. ${t(item.description)}`}
+                      onClick={() => navigate(item.id)}
+                    >
+                      <span className="workflow-step-number">
+                        {state === "complete"
+                          ? "✓"
+                          : state === "failed"
+                            ? "!"
+                            : index + 1}
+                      </span>
+                      <span className="workflow-step-copy">
+                        <strong>{t(item.label)}</strong>
+                        <small>{t(workflowStateLabel[state])}</small>
+                      </span>
+                    </button>
+                    {index < workflowSteps.length - 1 && (
+                      <span
+                        className={`workflow-connector ${nextState === "complete" ? "complete" : ""}${nextState === "processing" ? " processing" : ""}`}
+                        aria-hidden="true"
+                      >
+                        <i />
+                        <b>›</b>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </nav>
+          )}
           <LanguageSwitcher />
+          {activeNav !== "projects" && processingStep && (
+            <p className="sr-only" role="status">
+              {t("Đang xử lý bước {{step}}.", {
+                step: t(
+                  workflowSteps.find((item) => item.id === processingStep)
+                    ?.label ?? "",
+                ),
+              })}
+            </p>
+          )}
         </header>
         {busy && (
           <div className="toast" role="status">
@@ -848,10 +1027,25 @@ export default function Home() {
                       </span>
                       <span className="project-card-title">{p.name}</span>
                       <span className="project-meta">
-                        {p.language} · {p.version}
+                        {p.language} · {p.version} ·{" "}
+                        {t("{{count}} tệp", {
+                          count: p.sourceFileCount ?? 0,
+                        })}
+                      </span>
+                      <span className="project-health">
+                        <span>
+                          {t("{{count}} vấn đề", {
+                            count: p.issueCount ?? 0,
+                          })}
+                        </span>
+                        <span>
+                          {p.latestTestStatus
+                            ? `${t("Test gần nhất")}: ${t(p.latestTestStatus)}`
+                            : t("Chưa kiểm thử")}
+                        </span>
                       </span>
                       <span className="project-meta">
-                        {dateLabel(p.updatedAt)}
+                        {t("Cập nhật")} {dateLabel(p.updatedAt)}
                       </span>
                       <span className="project-open">{t("Mở dự án →")}</span>
                     </button>
@@ -889,22 +1083,6 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <nav
-              className="workflow-tabs"
-              aria-label={t("Các bước trong dự án")}
-            >
-              {navigation.slice(1).map((item, index) => (
-                <button
-                  key={item.id}
-                  disabled={Boolean(busy)}
-                  aria-current={activeNav === item.id ? "step" : undefined}
-                  onClick={() => navigate(item.id)}
-                >
-                  <span>{index + 1}</span>
-                  {t(item.label)}
-                </button>
-              ))}
-            </nav>
             {loading && <Empty>{t("Đang tải dữ liệu dự án…")}</Empty>}
             {data && (
               <>
@@ -1006,6 +1184,7 @@ export default function Home() {
                                 { signal, method: "POST" },
                               ),
                             "Quét hoàn tất. Kết quả được lấy từ source đang lưu.",
+                            "analysis",
                           ).then((ok) => {
                             if (ok) setActiveNav("analysis");
                           })
@@ -1101,6 +1280,75 @@ export default function Home() {
                 )}
                 {activeNav === "analysis" && (
                   <>
+                    <div
+                      className="issue-summary-bar"
+                      aria-label={t("Tóm tắt và lọc vấn đề")}
+                    >
+                      <button
+                        className={
+                          filter === "ALL" && statusFilter === "ALL"
+                            ? "selected"
+                            : ""
+                        }
+                        aria-pressed={
+                          filter === "ALL" && statusFilter === "ALL"
+                        }
+                        onClick={() => {
+                          setFilter("ALL");
+                          setStatusFilter("ALL");
+                        }}
+                      >
+                        {t("Tất cả")} <b>{counts.total}</b>
+                      </button>
+                      {(
+                        [
+                          ["CRITICAL", "Nghiêm trọng", counts.critical],
+                          ["HIGH", "Cao", counts.high],
+                          ["MEDIUM", "Trung bình", counts.medium],
+                          ["LOW", "Thấp", counts.low],
+                        ] as const
+                      ).map(([value, label, count]) => (
+                        <button
+                          key={value}
+                          className={
+                            filter === value && statusFilter === "ALL"
+                              ? "selected"
+                              : ""
+                          }
+                          aria-pressed={
+                            filter === value && statusFilter === "ALL"
+                          }
+                          onClick={() => {
+                            setFilter(value);
+                            setStatusFilter("ALL");
+                          }}
+                        >
+                          {t(label)} <b>{count}</b>
+                        </button>
+                      ))}
+                      <button
+                        className={statusFilter === "PENDING" ? "selected" : ""}
+                        aria-pressed={statusFilter === "PENDING"}
+                        onClick={() => {
+                          setFilter("ALL");
+                          setStatusFilter("PENDING");
+                        }}
+                      >
+                        {t("Chờ duyệt")} <b>{counts.pending}</b>
+                      </button>
+                      <button
+                        className={
+                          statusFilter === "RESOLVED" ? "selected" : ""
+                        }
+                        aria-pressed={statusFilter === "RESOLVED"}
+                        onClick={() => {
+                          setFilter("ALL");
+                          setStatusFilter("RESOLVED");
+                        }}
+                      >
+                        {t("Đã xử lý")} <b>{counts.resolved}</b>
+                      </button>
+                    </div>
                     <div className="issue-filters">
                       <label className="search-field">
                         <input
@@ -1116,11 +1364,13 @@ export default function Home() {
                           value={statusFilter}
                           onChange={(e) =>
                             setStatusFilter(
-                              e.target.value as IssueStatus | "ALL",
+                              e.target.value as
+                                IssueStatus | "ALL" | "RESOLVED",
                             )
                           }
                         >
                           <option value="ALL">{t("Tất cả")}</option>
+                          <option value="RESOLVED">{t("Đã xử lý")}</option>
                           {Object.entries(statusLabel).map(([value, label]) => (
                             <option key={value} value={value}>
                               {t(label)}
@@ -1178,11 +1428,14 @@ export default function Home() {
                                 </span>
                                 <span>{issue.ruleCode}</span>
                               </div>
-                              <b>{issue.type}</b>
-                              <p>{issue.description}</p>
-                              <small>
-                                {issue.filePath} : {issue.lineStart}
-                                <br />
+                              <b>{t(issue.type)}</b>
+                              <small className="issue-card-meta">
+                                <span title={issue.filePath}>
+                                  {issue.filePath}
+                                </span>
+                                <span>
+                                  {t("Dòng")} {issue.lineStart}
+                                </span>
                                 <span
                                   className={`status ${issue.status.toLowerCase()}`}
                                 >
@@ -1203,11 +1456,33 @@ export default function Home() {
                         </div>
                       </article>
                       <article className="panel proposal-panel">
-                        <div className="panel-title">
-                          <div>
-                            <b>{t("Review đề xuất sửa")}</b>
-                            {selectedIssue && <h2>{selectedIssue.type}</h2>}
-                          </div>
+                        <div className="panel-title proposal-heading">
+                          {selectedIssue ? (
+                            <div className="proposal-heading-main">
+                              <div className="proposal-title-line">
+                                <h2>{t(selectedIssue.type)}</h2>
+                                <span
+                                  className={`severity ${selectedIssue.severity.toLowerCase()}`}
+                                >
+                                  {t(severityLabel[selectedIssue.severity])}
+                                </span>
+                                <span
+                                  className={`status ${selectedIssue.status.toLowerCase()}`}
+                                >
+                                  {t(statusLabel[selectedIssue.status])}
+                                </span>
+                              </div>
+                              <p className="proposal-location">
+                                <span>{selectedIssue.ruleCode}</span>
+                                <b>{selectedIssue.filePath}</b>
+                                <span>
+                                  {t("Dòng")} {selectedIssue.lineStart}
+                                </span>
+                              </p>
+                            </div>
+                          ) : (
+                            <b>{t("Chi tiết vấn đề")}</b>
+                          )}
                         </div>
                         {selectedIssue ? (
                           <>
@@ -1221,14 +1496,14 @@ export default function Home() {
                                 aria-selected={reviewTab === "explanation"}
                                 onClick={() => setReviewTab("explanation")}
                               >
-                                {t("Giải thích")}
+                                {t("Tổng quan")}
                               </button>
                               <button
                                 role="tab"
                                 aria-selected={reviewTab === "diff"}
                                 onClick={() => setReviewTab("diff")}
                               >
-                                {t("So sánh bản sửa")}
+                                {t("Bản sửa")}
                               </button>
                               <button
                                 className="text-link"
@@ -1237,16 +1512,21 @@ export default function Home() {
                                   navigate("source");
                                 }}
                               >
-                                {t("Xem mã nguồn →")}
+                                {t("Mã nguồn →")}
                               </button>
                             </div>
                             <div hidden={reviewTab !== "explanation"}>
-                              <p className="issue-summary">
-                                {selectedIssue.explanation}
-                              </p>
-                              <p className="issue-summary">
-                                <b>{t("Ảnh hưởng:")}</b> {selectedIssue.impact}
-                              </p>
+                              <div className="issue-overview-blocks">
+                                <section>
+                                  <b>{t("Mô tả")}</b>
+                                  <p>{t(selectedIssue.description)}</p>
+                                  <p>{t(selectedIssue.explanation)}</p>
+                                </section>
+                                <section className="impact-block">
+                                  <b>{t("Ảnh hưởng")}</b>
+                                  <p>{t(selectedIssue.impact)}</p>
+                                </section>
+                              </div>
                               <details className="technical-details">
                                 <summary>{t("Chi tiết kỹ thuật")}</summary>
                                 <p>
@@ -1254,15 +1534,6 @@ export default function Home() {
                                     ? t("Độ tin cậy: chưa đo")
                                     : `${Math.round(selectedIssue.confidence * 100)}%`}
                                 </p>
-                                <div className="location">
-                                  <Icon name="code" size={16} />
-                                  <b>{selectedIssue.filePath}</b>
-                                  <span>
-                                    {t("Dòng")} {selectedIssue.lineStart}–
-                                    {selectedIssue.lineEnd}
-                                  </span>
-                                  <span>{selectedIssue.ruleCode}</span>
-                                </div>
                               </details>
                             </div>
                             <div hidden={reviewTab !== "diff"}>
@@ -1292,7 +1563,7 @@ export default function Home() {
                                   </div>
                                   <p className="reason">
                                     <b>{t("Lý do:")}</b>{" "}
-                                    {selectedProposal.reason}
+                                    {t(selectedProposal.reason)}
                                   </p>
                                 </>
                               ) : (
@@ -1314,6 +1585,7 @@ export default function Home() {
                                                 { signal, method: "POST" },
                                               ),
                                             "Đã nhận đề xuất AI. Review diff và chạy test sau khi áp dụng.",
+                                            "analysis",
                                           )
                                         }
                                       >
@@ -1323,92 +1595,100 @@ export default function Home() {
                                 </div>
                               )}
                             </div>
-                            <div className="review-actions">
-                              <span className="decision">
-                                {t(statusLabel[selectedIssue.status])}
-                              </span>
-                              {selectedIssue.status === "PENDING" && (
-                                <>
+                            {(selectedIssue.status === "PENDING" ||
+                              selectedIssue.status === "ACCEPTED") && (
+                              <div className="review-actions">
+                                {selectedIssue.status === "PENDING" && (
+                                  <>
+                                    <button
+                                      className="reject-button"
+                                      disabled={disabled}
+                                      onClick={() => void reviewIssue("reject")}
+                                    >
+                                      <Icon name="x" size={16} />
+                                      {t("Từ chối")}
+                                    </button>
+                                    <button
+                                      className="accept-button"
+                                      title={
+                                        !selectedProposal
+                                          ? t(
+                                              "Cần có đề xuất sửa trước khi chấp nhận.",
+                                            )
+                                          : t(
+                                              "Chấp nhận chưa thay đổi mã nguồn.",
+                                            )
+                                      }
+                                      disabled={
+                                        disabled ||
+                                        !selectedProposal ||
+                                        proposalLoading
+                                      }
+                                      onClick={() => void reviewIssue("accept")}
+                                    >
+                                      <Icon name="check" size={16} />
+                                      {t("Chấp nhận bản sửa")}
+                                    </button>
+                                  </>
+                                )}
+                                {selectedIssue.status === "ACCEPTED" && (
                                   <button
                                     className="reject-button"
                                     disabled={disabled}
                                     onClick={() => void reviewIssue("reject")}
                                   >
-                                    <Icon name="x" size={16} />
-                                    {t("Từ chối")}
+                                    {t("Đổi sang từ chối")}
                                   </button>
-                                  <button
-                                    className="accept-button"
-                                    title={
-                                      !selectedProposal
-                                        ? t(
-                                            "Cần có đề xuất sửa trước khi chấp nhận.",
-                                          )
-                                        : t("Chấp nhận chưa thay đổi mã nguồn.")
-                                    }
-                                    disabled={
-                                      disabled ||
-                                      !selectedProposal ||
-                                      proposalLoading
-                                    }
-                                    onClick={() => void reviewIssue("accept")}
-                                  >
-                                    <Icon name="check" size={16} />
-                                    {t("Chấp nhận bản sửa")}
-                                  </button>
-                                </>
-                              )}
-                              {selectedIssue.status === "ACCEPTED" && (
-                                <button
-                                  className="reject-button"
-                                  disabled={disabled}
-                                  onClick={() => void reviewIssue("reject")}
-                                >
-                                  {t("Đổi sang từ chối")}
-                                </button>
-                              )}
-                            </div>
+                                )}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <Empty>
                             {t("Chọn một vấn đề sau khi quét để xem đề xuất.")}
                           </Empty>
                         )}
-                        <div className="apply-section">
-                          <div>
-                            <b>
-                              {t("{{count}} đề xuất đang chờ áp dụng", {
+                        {counts.accepted > 0 && (
+                          <div className="apply-section">
+                            <div>
+                              <b>
+                                {t("{{count}} đề xuất đang chờ áp dụng", {
+                                  count: counts.accepted,
+                                })}
+                              </b>
+                              <small>
+                                {t(
+                                  "Lưu phiên bản trước khi thay đổi source. Sau đó cần chạy test để xác minh.",
+                                )}
+                              </small>
+                            </div>
+                            <button
+                              className="primary-button"
+                              disabled={disabled}
+                              onClick={() =>
+                                void performAction(
+                                  "Đang áp dụng patch…",
+                                  (id, signal) =>
+                                    apiFetch(`/projects/${id}/apply`, {
+                                      signal,
+                                      method: "POST",
+                                    }),
+                                  "Đã tạo phiên bản mới. Chạy kiểm thử để kiểm tra thay đổi.",
+                                  "analysis",
+                                ).then((ok) => {
+                                  if (ok) {
+                                    setTestSection("results");
+                                    setActiveNav("testing");
+                                  }
+                                })
+                              }
+                            >
+                              {t("Áp dụng {{count}} bản sửa đã duyệt", {
                                 count: counts.accepted,
                               })}
-                            </b>
-                            <small>
-                              {t(
-                                "Lưu phiên bản trước khi thay đổi source. Sau đó cần chạy test để xác minh.",
-                              )}
-                            </small>
+                            </button>
                           </div>
-                          <button
-                            className="primary-button"
-                            disabled={disabled || counts.accepted === 0}
-                            onClick={() =>
-                              void performAction(
-                                "Đang áp dụng patch…",
-                                (id, signal) =>
-                                  apiFetch(`/projects/${id}/apply`, {
-                                    signal,
-                                    method: "POST",
-                                  }),
-                                "Đã tạo phiên bản mới. Chạy kiểm thử để kiểm tra thay đổi.",
-                              ).then((ok) => {
-                                if (ok) setActiveNav("testing");
-                              })
-                            }
-                          >
-                            {t("Áp dụng {{count}} bản sửa đã duyệt", {
-                              count: counts.accepted,
-                            })}
-                          </button>
-                        </div>
+                        )}
                       </article>
                     </section>
                   </>
@@ -1433,159 +1713,192 @@ export default function Home() {
                                   method: "POST",
                                 }),
                               "Đã nhận kết quả kiểm thử. Xem trạng thái và log bên dưới.",
-                            )
+                              "testing",
+                            ).then((ok) => {
+                              if (ok) setTestSection("results");
+                            })
                           }
                         >
                           <Icon name="play" size={14} />
                           {t("Chạy test")}
                         </button>
                       </div>
-                      <TestComparison runs={data.tests} />
-                      {data.tests.map((run) => (
-                        <div className="test-result" key={run.id}>
-                          <div className="test-run">
-                            <span
-                              className={`run-icon ${run.status === "PASS" ? "pass-icon" : "fail-icon"}`}
-                            >
-                              {run.status === "PASS" ? "✓" : "!"}
-                            </span>
-                            <div>
-                              <b>
-                                {run.version} · {t(run.status)}
-                              </b>
-                              <small>
-                                {run.passed}/{run.total} {t("đạt ·")}{" "}
-                                {run.failed} {t("lỗi ·")} {run.errors}{" "}
-                                {t("lỗi thực thi ·")} {run.duration}
-                              </small>
-                            </div>
-                            <span>{dateLabel(run.createdAt)}</span>
-                          </div>
-                          {run.output && (
-                            <details className="test-output">
-                              <summary>{t("Xem log kiểm thử")}</summary>
-                              <pre>{run.output}</pre>
-                              {capabilities?.aiConfigured && (
-                                <TestExplanation
-                                  projectId={projectId}
-                                  runId={run.id}
-                                />
-                              )}
-                            </details>
-                          )}
-                        </div>
-                      ))}
-                      {!data.tests.length && (
-                        <Empty>
-                          {t(
-                            "Chưa có lượt kiểm thử. Chạy test trước khi Apply để ghi nhận baseline và chạy lại sau khi sửa.",
-                          )}
-                        </Empty>
-                      )}
-                      <p className="form-help panel-help">
-                        {t(
-                          "Nếu sandbox chưa sẵn sàng, hệ thống sẽ báo lỗi và không tạo kết quả giả.",
-                        )}
-                      </p>
-                      <form className="test-case-form" onSubmit={saveTest}>
-                        <h3>
-                          {t("Bộ test pytest")}
-                          {testDirty && (
-                            <span className="draft-badge">{t("Chưa lưu")}</span>
-                          )}
-                        </h3>
-                        {capabilities?.aiConfigured && (
-                          <>
-                            <button
-                              type="button"
-                              className="run-button"
-                              disabled={disabled || !data.files.length}
-                              onClick={() =>
-                                void performAction(
-                                  "Đang sinh test bằng AI…",
-                                  (id, signal) =>
-                                    apiFetch(
-                                      `/projects/${id}/test-cases/generate`,
-                                      { signal, method: "POST" },
-                                    ),
-                                  "Đã lưu các test do AI tạo. Kiểm tra nội dung trước khi chạy.",
-                                )
-                              }
-                            >
-                              {t("Sinh test bằng AI từ source")}
-                            </button>
-                            <small className="form-help">
-                              {t(
-                                "Bấm để gửi source tới dịch vụ AI đã cấu hình.",
-                              )}
-                            </small>
-                          </>
-                        )}
-                        <label>
-                          {t("Test đã lưu")}
-                          <select
-                            value={testEditorId}
-                            disabled={Boolean(busy)}
-                            onChange={(event) => {
-                              if (!confirmDiscard()) return;
-                              const chosen = data.testCases.find(
-                                (item) => item.name === event.target.value,
-                              );
-                              setTestEditorId(event.target.value);
-                              setTestName(chosen?.name ?? "test_project.py");
-                              setTestCode(chosen?.code ?? "");
-                              setTestBaseline({
-                                name: chosen?.name ?? "test_project.py",
-                                code: chosen?.code ?? "",
-                              });
-                            }}
-                          >
-                            <option value="">{t("＋ Test mới")}</option>
-                            {data.testCases.map((item) => (
-                              <option key={item.id} value={item.name}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>
-                          {t("Tên tệp test")}
-                          <input
-                            required
-                            value={testName}
-                            onChange={(event) =>
-                              setTestName(event.target.value)
-                            }
-                            placeholder="test_project.py"
-                            pattern="test_[A-Za-z0-9_]+\.py"
-                            title={t("Tên dạng test_ten.py")}
-                            disabled={Boolean(busy)}
-                          />
-                        </label>
-                        <label>
-                          {t("Nội dung pytest")}
-                          <textarea
-                            required
-                            value={testCode}
-                            onChange={(event) =>
-                              setTestCode(event.target.value)
-                            }
-                            rows={8}
-                            spellCheck={false}
-                            placeholder={
-                              "from calculator import divide\n\ndef test_divide():\n    assert divide(6, 2) == 3"
-                            }
-                            disabled={Boolean(busy)}
-                          />
-                        </label>
+                      <div
+                        className="test-subtabs"
+                        role="tablist"
+                        aria-label={t("Nội dung kiểm thử")}
+                      >
                         <button
-                          className="outline-button"
-                          disabled={disabled || !testCode.trim()}
-                          type="submit"
+                          role="tab"
+                          aria-selected={testSection === "results"}
+                          onClick={() => setTestSection("results")}
                         >
-                          {t("Lưu test case")}
+                          {t("Kết quả kiểm thử")}
+                          <b>{data.tests.length}</b>
                         </button>
-                      </form>
+                        <button
+                          role="tab"
+                          aria-selected={testSection === "cases"}
+                          onClick={() => setTestSection("cases")}
+                        >
+                          {t("Quản lý test case")}
+                          <b>{data.testCases.length}</b>
+                        </button>
+                      </div>
+                      {testSection === "results" && (
+                        <div className="test-results-section">
+                          <TestComparison runs={data.tests} />
+                          {data.tests.map((run) => (
+                            <div className="test-result" key={run.id}>
+                              <div className="test-run">
+                                <span
+                                  className={`run-icon ${run.status === "PASS" ? "pass-icon" : "fail-icon"}`}
+                                >
+                                  {run.status === "PASS" ? "✓" : "!"}
+                                </span>
+                                <div>
+                                  <b>
+                                    {run.version} · {t(run.status)}
+                                  </b>
+                                  <small>
+                                    {run.passed}/{run.total} {t("đạt ·")}{" "}
+                                    {run.failed} {t("lỗi ·")} {run.errors}{" "}
+                                    {t("lỗi thực thi ·")} {run.duration}
+                                  </small>
+                                </div>
+                                <span>{dateLabel(run.createdAt)}</span>
+                              </div>
+                              {run.output && (
+                                <details className="test-output">
+                                  <summary>{t("Xem log kiểm thử")}</summary>
+                                  <pre>{run.output}</pre>
+                                  {capabilities?.aiConfigured && (
+                                    <TestExplanation
+                                      projectId={projectId}
+                                      runId={run.id}
+                                    />
+                                  )}
+                                </details>
+                              )}
+                            </div>
+                          ))}
+                          {!data.tests.length && (
+                            <Empty>
+                              {t(
+                                "Chưa có lượt kiểm thử. Chạy test trước khi Apply để ghi nhận baseline và chạy lại sau khi sửa.",
+                              )}
+                            </Empty>
+                          )}
+                          <p className="form-help panel-help">
+                            {t(
+                              "Nếu sandbox chưa sẵn sàng, hệ thống sẽ báo lỗi và không tạo kết quả giả.",
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {testSection === "cases" && (
+                        <form className="test-case-form" onSubmit={saveTest}>
+                          <h3>
+                            {t("Bộ test pytest")}
+                            {testDirty && (
+                              <span className="draft-badge">
+                                {t("Chưa lưu")}
+                              </span>
+                            )}
+                          </h3>
+                          {capabilities?.aiConfigured && (
+                            <>
+                              <button
+                                type="button"
+                                className="run-button"
+                                disabled={disabled || !data.files.length}
+                                onClick={() =>
+                                  void performAction(
+                                    "Đang sinh test bằng AI…",
+                                    (id, signal) =>
+                                      apiFetch(
+                                        `/projects/${id}/test-cases/generate`,
+                                        { signal, method: "POST" },
+                                      ),
+                                    "Đã lưu các test do AI tạo. Kiểm tra nội dung trước khi chạy.",
+                                  )
+                                }
+                              >
+                                {t("Sinh test bằng AI từ source")}
+                              </button>
+                              <small className="form-help">
+                                {t(
+                                  "Bấm để gửi source tới dịch vụ AI đã cấu hình.",
+                                )}
+                              </small>
+                            </>
+                          )}
+                          <label>
+                            {t("Test đã lưu")}
+                            <select
+                              value={testEditorId}
+                              disabled={Boolean(busy)}
+                              onChange={(event) => {
+                                if (!confirmDiscard()) return;
+                                const chosen = data.testCases.find(
+                                  (item) => item.name === event.target.value,
+                                );
+                                setTestEditorId(event.target.value);
+                                setTestName(chosen?.name ?? "test_project.py");
+                                setTestCode(chosen?.code ?? "");
+                                setTestBaseline({
+                                  name: chosen?.name ?? "test_project.py",
+                                  code: chosen?.code ?? "",
+                                });
+                              }}
+                            >
+                              <option value="">{t("＋ Test mới")}</option>
+                              {data.testCases.map((item) => (
+                                <option key={item.id} value={item.name}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            {t("Tên tệp test")}
+                            <input
+                              required
+                              value={testName}
+                              onChange={(event) =>
+                                setTestName(event.target.value)
+                              }
+                              placeholder="test_project.py"
+                              pattern="test_[A-Za-z0-9_]+\.py"
+                              title={t("Tên dạng test_ten.py")}
+                              disabled={Boolean(busy)}
+                            />
+                          </label>
+                          <label>
+                            {t("Nội dung pytest")}
+                            <textarea
+                              required
+                              value={testCode}
+                              onChange={(event) =>
+                                setTestCode(event.target.value)
+                              }
+                              rows={8}
+                              spellCheck={false}
+                              placeholder={
+                                "from calculator import divide\n\ndef test_divide():\n    assert divide(6, 2) == 3"
+                              }
+                              disabled={Boolean(busy)}
+                            />
+                          </label>
+                          <button
+                            className="outline-button"
+                            disabled={disabled || !testCode.trim()}
+                            type="submit"
+                          >
+                            {t("Lưu test case")}
+                          </button>
+                        </form>
+                      )}
                     </article>
                   </section>
                 )}
@@ -1602,29 +1915,73 @@ export default function Home() {
                         </div>
                       </div>
                       <div className="timeline">
-                        {data.versions.map((version) => (
-                          <div key={version.id}>
-                            <span
-                              className={`timeline-node${version.version === data.project.version ? " current" : ""}`}
-                            />
-                            <b>
-                              {version.version}
-                              {version.version === data.project.version && (
-                                <small>{t("Hiện tại")}</small>
-                              )}
-                            </b>
-                            <p>{dateLabel(version.createdAt)}</p>
-                            {version.version !== data.project.version && (
-                              <button
-                                className="version-restore"
-                                disabled={disabled}
-                                onClick={() => setRollbackTarget(version)}
-                              >
-                                {t("Khôi phục nội dung")} {version.version}
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                        {data.versions.map((version) => {
+                          const versionTest = data.tests.find(
+                            (run) => run.version === version.version,
+                          );
+                          return (
+                            <div className="version-entry" key={version.id}>
+                              <span
+                                className={`timeline-node${version.version === data.project.version ? " current" : ""}`}
+                              />
+                              <div className="version-entry-head">
+                                <b>
+                                  {version.version}
+                                  {version.version === data.project.version && (
+                                    <small>{t("Hiện tại")}</small>
+                                  )}
+                                </b>
+                                {versionTest && (
+                                  <span
+                                    className={`version-test ${versionTest.status.toLowerCase()}`}
+                                  >
+                                    {t(versionTest.status)}
+                                  </span>
+                                )}
+                              </div>
+                              <strong className="version-reason">
+                                {versionReasonLabel(version.reason)}
+                              </strong>
+                              <div className="version-meta">
+                                <span>
+                                  {t("{{count}} tệp", {
+                                    count:
+                                      version.fileCount ?? data.files.length,
+                                  })}
+                                </span>
+                                <span>
+                                  {t("{{count}} tệp thay đổi", {
+                                    count: version.changedFileCount ?? 0,
+                                  })}
+                                </span>
+                                <span>
+                                  {version.createdBy === user.id
+                                    ? t("Bạn thực hiện")
+                                    : t("Hệ thống thực hiện")}
+                                </span>
+                                <span>{dateLabel(version.createdAt)}</span>
+                              </div>
+                              <div className="version-actions">
+                                <button
+                                  className="admin-outline version-detail"
+                                  disabled={disabled}
+                                  onClick={() => void viewVersion(version)}
+                                >
+                                  {t("Xem thay đổi")}
+                                </button>
+                                {version.version !== data.project.version && (
+                                  <button
+                                    className="version-restore"
+                                    disabled={disabled}
+                                    onClick={() => setRollbackTarget(version)}
+                                  >
+                                    {t("Khôi phục nội dung")} {version.version}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                       {!data.versions.length && (
                         <Empty>
@@ -1775,6 +2132,82 @@ export default function Home() {
           </div>
         </div>
       )}
+      {versionDetailTarget && (
+        <div className="admin-modal-backdrop">
+          <div
+            className="admin-modal version-diff-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="version-diff-title"
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label={t("Đóng")}
+              onClick={() => {
+                setVersionDetailTarget(null);
+                setVersionDiff(null);
+                setVersionDiffError("");
+              }}
+            >
+              {t("×")}
+            </button>
+            <p className="form-eyebrow">{t("LỊCH SỬ PHIÊN BẢN")}</p>
+            <h2 id="version-diff-title">
+              {t("Thay đổi trong {{version}}", {
+                version: versionDetailTarget.version,
+              })}
+            </h2>
+            <p>
+              {versionReasonLabel(versionDetailTarget.reason)} ·{" "}
+              {dateLabel(versionDetailTarget.createdAt)}
+            </p>
+            {versionDiffLoading ? (
+              <Empty>{t("Đang tải thay đổi…")}</Empty>
+            ) : versionDiffError ? (
+              <div className="admin-inline-error" role="alert">
+                {versionDiffError}
+                <button
+                  className="admin-outline"
+                  onClick={() => void viewVersion(versionDetailTarget)}
+                >
+                  {t("Thử lại")}
+                </button>
+              </div>
+            ) : versionDiff ? (
+              <>
+                <div className="version-diff-summary">
+                  <b>
+                    {versionDiff.comparedWith
+                      ? t("So với {{version}}", {
+                          version: versionDiff.comparedWith,
+                        })
+                      : t("Phiên bản đầu tiên")}
+                  </b>
+                  <span>
+                    {t("{{count}} tệp thay đổi", {
+                      count: versionDiff.changedFiles.length,
+                    })}
+                  </span>
+                </div>
+                <div className="changed-file-list">
+                  {versionDiff.changedFiles.map((file) => (
+                    <span key={file.path}>
+                      <b>{t(file.change)}</b>
+                      {file.path}
+                    </span>
+                  ))}
+                </div>
+                {versionDiff.diff ? (
+                  <pre className="version-diff-code">{versionDiff.diff}</pre>
+                ) : (
+                  <Empty>{t("Không có thay đổi nội dung.")}</Empty>
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
       {rollbackTarget && (
         <div className="admin-modal-backdrop">
           <div
@@ -1816,6 +2249,7 @@ export default function Home() {
                         { signal, method: "POST" },
                       ),
                     "Đã khôi phục nội dung thành phiên bản mới. Hãy quét và chạy test lại.",
+                    "versions",
                   ).then((success) => {
                     if (success) setRollbackTarget(null);
                   })

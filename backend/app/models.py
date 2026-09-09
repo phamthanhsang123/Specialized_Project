@@ -52,6 +52,7 @@ class Project(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     language: Mapped[str] = mapped_column(String(80), default="Python 3.12", nullable=False)
     current_version: Mapped[str] = mapped_column(String(32), default="v1", nullable=False)
+    last_scanned_version: Mapped[str | None] = mapped_column(String(32))
     owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
     owner: Mapped[User | None] = relationship(back_populates="projects")
@@ -83,6 +84,7 @@ class CodeVersion(Base, TimestampMixin):
     source_path: Mapped[str] = mapped_column(String(512), nullable=False)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(64), default="SOURCE_UPDATED", server_default="SOURCE_UPDATED", nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="versions")
 
@@ -188,6 +190,8 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     """
     additions = {
         "users": {"is_active": "BOOLEAN NOT NULL DEFAULT TRUE", "must_change_password": "BOOLEAN NOT NULL DEFAULT FALSE"},
+        "projects": {"last_scanned_version": "VARCHAR(32)"},
+        "code_versions": {"reason": "VARCHAR(64) NOT NULL DEFAULT 'SOURCE_UPDATED'"},
         "fix_proposals": {"base_source_hash": "VARCHAR(64)"},
     }
     with engine.begin() as connection:

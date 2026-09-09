@@ -244,7 +244,7 @@ export default function AdminPage() {
           <span className="admin-avatar admin-avatar-gold">S</span>
           <div>
             <b>{t("Quản trị hệ thống")}</b>
-            <small>Admin workspace</small>
+            <small>{t("Không gian quản trị")}</small>
           </div>
         </div>
         <nav aria-label={t("Điều hướng Admin")}>

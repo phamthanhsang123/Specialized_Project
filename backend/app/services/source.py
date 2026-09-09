@@ -52,8 +52,13 @@ def content_hash(content: str) -> str:
 
 
 def project_to_out(project: Project) -> ProjectOut:
+    latest_test = max(project.test_results, key=lambda run: run.created_at, default=None)
     return ProjectOut(id=project.id, name=project.name, language=project.language,
-                      updatedAt=project.updated_at.isoformat(), version=project.current_version)
+                      updatedAt=project.updated_at.isoformat(), version=project.current_version,
+                      lastScannedVersion=project.last_scanned_version,
+                      sourceFileCount=len(project.files), issueCount=len(project.issues),
+                      pendingIssueCount=sum(issue.status == "PENDING" for issue in project.issues),
+                      latestTestStatus=latest_test.status if latest_test else None)
 
 
 def file_to_out(file: SourceFile) -> FileOut:
@@ -83,9 +88,17 @@ def test_to_out(run: TestResult) -> TestRunOut:
                       duration=run.duration, createdAt=run.created_at, output=run.output)
 
 
-def version_to_out(version: CodeVersion) -> VersionOut:
+def version_to_out(version: CodeVersion, previous: CodeVersion | None = None) -> VersionOut:
+    snapshot = json.loads(version.snapshot_json)
+    previous_snapshot = json.loads(previous.snapshot_json) if previous else {}
+    changed_paths = {
+        path for path in set(snapshot) | set(previous_snapshot)
+        if snapshot.get(path) != previous_snapshot.get(path)
+    }
     return VersionOut(id=version.id, version=version.version, sourcePath=version.source_path,
-                      createdAt=version.created_at, createdBy=version.created_by)
+                      createdAt=version.created_at, createdBy=version.created_by,
+                      reason=version.reason, fileCount=len(snapshot),
+                      changedFileCount=len(changed_paths))
 
 
 def safe_upload_path(path: str) -> str:
@@ -235,7 +248,8 @@ def next_version(project: Project) -> str:
     return f"v{max(numbers, default=0) + 1}"
 
 
-def create_snapshot(db: Session, project: Project, created_by: str | None = None) -> CodeVersion:
+def create_snapshot(db: Session, project: Project, created_by: str | None = None,
+                    reason: str = "SOURCE_UPDATED") -> CodeVersion:
     db.flush()
     files = db.query(SourceFile).filter(SourceFile.project_id == project.id).order_by(SourceFile.path).populate_existing().all()
     snapshot = {file.path: file.content for file in files}
@@ -247,7 +261,8 @@ def create_snapshot(db: Session, project: Project, created_by: str | None = None
         return existing
     version = CodeVersion(project=project, version=project.current_version,
                           source_path=f"storage/{project.id}/{project.current_version}",
-                          snapshot_json=json.dumps(snapshot, ensure_ascii=False), created_by=created_by)
+                          snapshot_json=json.dumps(snapshot, ensure_ascii=False), created_by=created_by,
+                          reason=reason)
     db.add(version)
     db.flush()
     return version
@@ -276,7 +291,10 @@ def replace_project_files(db: Session, project: Project, files: dict[str, str]) 
         normalized_files[normalized_path] = content
     files = normalized_files
     _lock_project(db, project)
-    create_snapshot(db, project)
+    create_snapshot(
+        db, project, created_by=project.owner_id,
+        reason="INITIAL" if not project.versions else "SOURCE_UPDATED",
+    )
     new_version = next_version(project)
     _clear_issues(db, project)
     project.files.clear()
@@ -289,7 +307,7 @@ def replace_project_files(db: Session, project: Project, files: dict[str, str]) 
     project.current_version = new_version
     project.updated_at = datetime.utcnow()
     db.flush()
-    create_snapshot(db, project)
+    create_snapshot(db, project, created_by=project.owner_id, reason="SOURCE_UPLOADED")
     return created
 
 
@@ -438,6 +456,7 @@ def scan_project(db: Session, project: Project) -> list[Issue]:
                                    diff=make_diff(source_file.path, detected.original_code, detected.replacement_code),
                                    reason=detected.reason, base_source_hash=content_hash(source_file.content)))
             created.append(issue)
+    project.last_scanned_version = project.current_version
     db.flush()
     return created
 
@@ -509,7 +528,7 @@ def apply_accepted_fixes(db: Session, project: Project) -> int:
         except SyntaxError as error:
             raise ValueError(f"Patch rejected: {source_file.path}:{error.lineno}: {error.msg}") from error
         changes[file_id] = (source_file, candidate)
-    create_snapshot(db, project)
+    create_snapshot(db, project, created_by=project.owner_id)
     new_version = next_version(project)
     for source_file, candidate in changes.values():
         source_file.content = candidate
@@ -520,7 +539,7 @@ def apply_accepted_fixes(db: Session, project: Project) -> int:
     project.current_version = new_version
     project.updated_at = datetime.utcnow()
     db.flush()
-    create_snapshot(db, project)
+    create_snapshot(db, project, created_by=project.owner_id, reason="FIX_APPLIED")
     return len(accepted)
 
 
@@ -541,5 +560,6 @@ def rollback_project(db: Session, project: Project, target_version: str | None =
     snapshot = json.loads(version.snapshot_json)
     replace_project_files(db, project, snapshot)
     restored = create_snapshot(db, project)
-    restored.created_by = f"rollback:{version.version}"
+    restored.created_by = project.owner_id
+    restored.reason = f"ROLLBACK:{version.version}"
     return restored

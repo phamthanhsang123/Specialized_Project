@@ -20,6 +20,11 @@ class ProjectOut(BaseModel):
     language: str
     updatedAt: str
     version: str
+    lastScannedVersion: str | None = None
+    sourceFileCount: int = 0
+    issueCount: int = 0
+    pendingIssueCount: int = 0
+    latestTestStatus: TestStatus | None = None
 
 
 class FileOut(BaseModel):
@@ -78,6 +83,9 @@ class VersionOut(BaseModel):
     sourcePath: str
     createdAt: datetime
     createdBy: str | None = None
+    reason: str = "SOURCE_UPDATED"
+    fileCount: int = 0
+    changedFileCount: int = 0
 
 
 class UploadOut(BaseModel):

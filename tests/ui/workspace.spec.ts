@@ -554,15 +554,20 @@ test("quick demo login sends the correct account for each role", async ({ page }
     });
     await page.route("**/api/auth/me", (route) => route.fulfill({ json: user }));
     await page.goto(role === "admin" ? "/admin/login" : "/login");
-    await page
-      .getByRole("button", {
-        name:
-          role === "admin"
-            ? "Vào nhanh bằng tài khoản quản trị mẫu"
-            : "Vào nhanh bằng tài khoản lập trình viên mẫu",
-      })
-      .click();
-    await expect(page).toHaveURL(role === "admin" ? /\/admin$/ : /\/$/);
+    const quickButton = page.getByRole("button", {
+      name:
+        role === "admin"
+          ? "Vào nhanh bằng tài khoản quản trị mẫu"
+          : "Vào nhanh bằng tài khoản lập trình viên mẫu",
+    });
+    const destination = role === "admin" ? /\/admin$/ : /\/$/;
+    const navigated = page.waitForURL(destination);
+    await quickButton.click();
+    const thinkingButton = page.locator(".demo-login-button");
+    await expect(thinkingButton).toBeDisabled();
+    await expect(thinkingButton).toContainText("Đang suy nghĩ…");
+    await expect(thinkingButton.locator(".thinking-spinner")).toBeVisible();
+    await navigated;
     expect(credentials).toEqual({
       email: `${role}@sentinel.local`,
       password: "password",

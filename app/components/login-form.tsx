@@ -16,11 +16,21 @@ import {
 import type { LoginResponse, User } from "../../lib/types";
 import { landingPath } from "../../lib/auth";
 import { useMessage } from "./use-message";
+
+const QUICK_LOGIN_DELAY_MS = 1800;
+
+async function waitForMinimum(startedAt: number, minimumMs: number) {
+  const remaining = minimumMs - (Date.now() - startedAt);
+  if (remaining > 0)
+    await new Promise<void>((resolve) => window.setTimeout(resolve, remaining));
+}
+
 export default function LoginForm({ admin = false }: { admin?: boolean }) {
   useTranslation();
   const router = useRouter();
   const [message, setMessage] = useMessage();
   const [busy, setBusy] = useState(false);
+  const [quickThinking, setQuickThinking] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     if (new URLSearchParams(window.location.search).has("expired"))
@@ -43,9 +53,11 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
     }
     return () => controller.abort();
   }, [router]);
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string, minimumWaitMs = 0) {
     if (busy) return;
+    const startedAt = Date.now();
     setBusy(true);
+    setQuickThinking(minimumWaitMs > 0);
     setMessage("");
     try {
       const result = await apiFetch<LoginResponse>("/auth/login", {
@@ -55,6 +67,7 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           password,
         }),
       });
+      await waitForMinimum(startedAt, minimumWaitMs);
       setToken(result.token);
       if (admin && result.user.role !== "admin") {
         const revocation = apiFetch("/auth/logout", {
@@ -71,8 +84,10 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
       }
       router.replace(landingPath(result.user));
     } catch (error) {
+      await waitForMinimum(startedAt, minimumWaitMs);
       setMessage(error instanceof Error ? error.message : errorMessage(error));
     } finally {
+      setQuickThinking(false);
       setBusy(false);
     }
   }
@@ -85,6 +100,7 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
     void signIn(
       admin ? "admin@sentinel.local" : "developer@sentinel.local",
       "password",
+      QUICK_LOGIN_DELAY_MS,
     );
   }
   return (
@@ -198,7 +214,17 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
             onClick={quickLogin}
           >
             {busy
-              ? t("Đang xác thực…")
+              ? quickThinking
+                ? <span className="login-thinking" role="status">
+                    <span className="thinking-spinner" aria-hidden="true" />
+                    <span>{t("Đang suy nghĩ…")}</span>
+                    <span className="thinking-dots" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </span>
+                : t("Đang xác thực…")
               : admin
                 ? t("Vào nhanh bằng tài khoản quản trị mẫu")
                 : t("Vào nhanh bằng tài khoản lập trình viên mẫu")}

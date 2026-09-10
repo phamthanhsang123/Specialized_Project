@@ -105,8 +105,24 @@ def test_owner_isolation_covers_project_and_issue_endpoints(auth_api):
         assert db.get(Project, created.json()["id"]).owner_id == "alice"
     upload = client.post("/api/projects/alice-project/upload", headers=alice_headers, files={"file": ("main.py", b"def f():\n    try:\n        return 1\n    except:\n        return 0\n")})
     assert upload.status_code == 200, upload.text
+    versions = client.get("/api/projects/alice-project/versions", headers=alice_headers).json()
+    assert {"reason", "fileCount", "changedFileCount"} <= versions[0].keys()
+    current_version = versions[0]["version"]
+    version_diff = client.get(
+        f"/api/projects/alice-project/versions/{current_version}/diff",
+        headers=alice_headers,
+    )
+    assert version_diff.status_code == 200, version_diff.text
+    assert version_diff.json()["changedFiles"]
+    assert client.get(
+        f"/api/projects/alice-project/versions/{current_version}/diff",
+        headers=bob_headers,
+    ).status_code == 404
     scanned = client.post("/api/projects/alice-project/scan", headers=alice_headers)
     assert scanned.status_code == 200, scanned.text
+    assert client.get(
+        "/api/projects/alice-project", headers=alice_headers
+    ).json()["lastScannedVersion"] == upload.json()["version"]
     issue_id = scanned.json()["issues"][0]["id"]
     for suffix in ("", "/proposal"):
         assert client.get(f"/api/issues/{issue_id}{suffix}", headers=bob_headers).status_code == 404

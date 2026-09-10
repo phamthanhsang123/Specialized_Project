@@ -1,5 +1,7 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+import difflib
+import json
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -152,7 +154,7 @@ def ensure_schema_and_seed() -> None:
         for path, content in DEMO_FILES.items():
             db.add(SourceFile(project_id=project.id, path=path, content=content, size_bytes=len(content.encode("utf-8"))))
         db.flush()
-        create_snapshot(db, project, created_by="seed")
+        create_snapshot(db, project, created_by="seed", reason="INITIAL")
         scan_project(db, project)
         db.commit()
 
@@ -358,7 +360,42 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
     @add(route_app.get, "/projects/{project_id}/versions", response_model=list[VersionOut])
     def list_versions(project: Project = Depends(authorized_project), db: Session = Depends(get_db)) -> list[VersionOut]:
         versions = db.query(CodeVersion).filter(CodeVersion.project_id == project.id).order_by(CodeVersion.created_at.desc()).all()
-        return [version_to_out(version) for version in versions]
+        chronological = sorted(versions, key=lambda item: (item.created_at, item.version))
+        previous_by_id = {
+            item.id: chronological[index - 1] if index else None
+            for index, item in enumerate(chronological)
+        }
+        return [version_to_out(version, previous_by_id[version.id]) for version in versions]
+
+    @add(route_app.get, "/projects/{project_id}/versions/{version}/diff")
+    def version_diff(version: str, project: Project = Depends(authorized_project), db: Session = Depends(get_db)) -> dict:
+        versions = db.query(CodeVersion).filter(CodeVersion.project_id == project.id).order_by(CodeVersion.created_at, CodeVersion.version).all()
+        target_index = next((index for index, item in enumerate(versions) if item.version == version), None)
+        if target_index is None:
+            raise HTTPException(status_code=404, detail="Version not found")
+        target = versions[target_index]
+        previous = versions[target_index - 1] if target_index else None
+        current_files = json.loads(target.snapshot_json)
+        previous_files = json.loads(previous.snapshot_json) if previous else {}
+        changed = []
+        diff_parts = []
+        for path_value in sorted(set(current_files) | set(previous_files)):
+            before = previous_files.get(path_value)
+            after = current_files.get(path_value)
+            if before == after:
+                continue
+            change = "ADDED" if before is None else "DELETED" if after is None else "MODIFIED"
+            changed.append({"path": path_value, "change": change})
+            diff_parts.extend(difflib.unified_diff(
+                (before or "").splitlines(), (after or "").splitlines(),
+                fromfile=f"a/{path_value}", tofile=f"b/{path_value}", lineterm="",
+            ))
+        return {
+            "version": target.version,
+            "comparedWith": previous.version if previous else None,
+            "changedFiles": changed,
+            "diff": "\n".join(diff_parts),
+        }
 
     @add(route_app.post, "/projects/{project_id}/rollback", response_model=VersionOut)
     def rollback(version: str | None = None, project: Project = Depends(authorized_project), db: Session = Depends(get_db)) -> VersionOut:

@@ -21,6 +21,11 @@ export interface Project {
   language: string;
   updatedAt: string;
   version: string;
+  lastScannedVersion?: string | null;
+  sourceFileCount?: number;
+  issueCount?: number;
+  pendingIssueCount?: number;
+  latestTestStatus?: "PASS" | "FAIL" | "RUNNING" | null;
 }
 export interface SourceFile {
   id: string;
@@ -71,6 +76,15 @@ export interface CodeVersion {
   sourcePath: string;
   createdAt: string;
   createdBy?: string | null;
+  reason?: string;
+  fileCount?: number;
+  changedFileCount?: number;
+}
+export interface VersionDiff {
+  version: string;
+  comparedWith: string | null;
+  changedFiles: { path: string; change: "ADDED" | "MODIFIED" | "DELETED" }[];
+  diff: string;
 }
 export interface TestCase {
   id: string;

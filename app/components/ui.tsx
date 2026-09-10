@@ -41,9 +41,19 @@ export function dateLabel(value: string): string {
       ? `${value}Z`
       : value;
   const date = new Date(normalized);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleString(i18n.language === "en" ? "en-GB" : "vi-VN");
+  if (Number.isNaN(date.getTime())) return value;
+  const locale = i18n.language === "en" ? "en-GB" : "vi-VN";
+  const datePart = new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: i18n.language === "en" ? "short" : "2-digit",
+    year: "numeric",
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${datePart} · ${timePart}`;
 }
 export function initials(name: string): string {
   return name

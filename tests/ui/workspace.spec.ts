@@ -29,7 +29,7 @@ test("unsaved test is protected on selection, project switch, and logout", async
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Kiểm thử/ })
     .click();
-  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
+  await page.getByRole("tab", { name: /Quản lý trường hợp kiểm thử/ }).click();
   const editor = page.locator(".test-case-form textarea");
   await editor.fill("def test_draft(): assert 42");
   await expect(page.getByText("Chưa lưu", { exact: true })).toBeVisible();
@@ -50,7 +50,7 @@ test("unsaved test is protected on selection, project switch, and logout", async
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Kiểm thử/ })
     .click();
-  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
+  await page.getByRole("tab", { name: /Quản lý trường hợp kiểm thử/ }).click();
   await expect(editor).toHaveValue("def test_draft(): assert 42");
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator(".test-case-form select").selectOption("test_saved.py");
@@ -116,24 +116,24 @@ test("stop waiting and timeout never automatically repeat mutations", async ({
   });
   await page.goto("/");
   await page.locator(".project-card").click();
-  await page.getByRole("button", { name: "Quét source", exact: true }).click();
+  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
   await page.getByRole("button", { name: "Dừng chờ", exact: true }).click();
   await expect(page.locator(".recovery-banner")).toContainText(
     "Chưa xác định kết quả",
   );
   await expect(
-    page.getByRole("button", { name: "Quét source", exact: true }),
+    page.getByRole("button", { name: "Quét mã nguồn", exact: true }),
   ).toBeDisabled();
   await page
     .getByRole("button", { name: "Tải lại dữ liệu", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "Quét source", exact: true }),
+    page.getByRole("button", { name: "Quét mã nguồn", exact: true }),
   ).toBeDisabled();
   expect(calls).toBe(1);
 });
 
-test("logout leaves immediately when API stalls; login notice follows language", async ({
+test("logout leaves immediately when API stalls and notice stays Vietnamese", async ({
   page,
 }) => {
   await workspace(page);
@@ -147,14 +147,10 @@ test("logout leaves immediately when API stalls; login notice follows language",
   ).toBeNull();
   const signedOut = await page.context().newPage();
   await signedOut.goto("http://localhost:3000/login?expired=1");
-  await signedOut.getByLabel("Ngôn ngữ").selectOption("en");
-  await expect(signedOut.locator(".login-message")).toContainText(
-    "Your session has expired",
-  );
-  await signedOut.getByLabel("Language").selectOption("vi");
   await expect(signedOut.locator(".login-message")).toContainText(
     "Phiên đăng nhập đã hết hạn",
   );
+  await expect(signedOut.locator("html")).toHaveAttribute("lang", "vi");
   await signedOut.close();
 });
 
@@ -229,10 +225,10 @@ test("create, reject and error feedback preserve user control", async ({
   const result = await workspace(page);
   await page.goto("/");
   await page.getByRole("button", { name: "＋ Tạo dự án" }).click();
-  await page.getByRole("dialog").getByLabel("Tên project").fill("Dự án mới");
+  await page.getByRole("dialog").getByLabel("Tên dự án").fill("Dự án mới");
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Tạo project", exact: true })
+    .getByRole("button", { name: "Tạo dự án", exact: true })
     .click();
   await expect(page.locator(".source-workspace")).toBeVisible();
   await expect(page.locator(".breadcrumbs")).toContainText("Dự án mới");
@@ -242,7 +238,7 @@ test("create, reject and error feedback preserve user control", async ({
       json: { detail: "Analysis service temporarily unavailable" },
     }),
   );
-  await page.getByRole("button", { name: "Quét source", exact: true }).click();
+  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
   await expect(page.locator(".toast-error")).toContainText(
     "Analysis service temporarily unavailable",
   );
@@ -311,7 +307,7 @@ test("test comparison and save test use backend data; admin and login fit mobile
   await expect(page.locator(".comparison-cards article").last()).toContainText(
     "3/3 đạt",
   );
-  await page.getByRole("tab", { name: /Quản lý test case/ }).click();
+  await page.getByRole("tab", { name: /Quản lý trường hợp kiểm thử/ }).click();
   await page
     .getByLabel("Nội dung pytest", { exact: true })
     .fill("def test_ok():\n    assert True");
@@ -320,21 +316,15 @@ test("test comparison and save test use backend data; admin and login fit mobile
       request.url().endsWith("/test-cases") && request.method() === "POST",
   );
   await page
-    .getByRole("button", { name: "Lưu test case", exact: true })
+    .getByRole("button", { name: "Lưu trường hợp kiểm thử", exact: true })
     .click();
   expect((await saved).postDataJSON().code).toContain("assert True");
   await expect(
     page
       .getByRole("status")
-      .filter({ hasText: "Đã lưu test case vào project." }),
+      .filter({ hasText: "Đã lưu trường hợp kiểm thử vào dự án." }),
   ).toBeVisible();
-  await page.getByLabel("Ngôn ngữ").selectOption("en");
-  await expect(
-    page
-      .getByRole("status")
-      .filter({ hasText: "Test case saved to the project." }),
-  ).toBeVisible();
-  await page.screenshot({ path: "test-results/tests-en.png", fullPage: true });
+  await page.screenshot({ path: "test-results/tests-vi.png", fullPage: true });
   expect(result.errors).toEqual([]);
 });
 
@@ -547,29 +537,62 @@ async function workspace(page: Page, role = "developer") {
   return { errors, uploaded: () => uploaded };
 }
 
-test("language toggle translates login immediately and persists after reload", async ({
+test("quick demo login sends the correct account for each role", async ({ page }) => {
+  for (const role of ["developer", "admin"] as const) {
+    const user = {
+      id: role,
+      role,
+      email: `${role}@sentinel.local`,
+      fullName: role === "admin" ? "System Admin" : "Demo Developer",
+      isActive: true,
+      mustChangePassword: false,
+    };
+    let credentials: Record<string, string> | undefined;
+    await page.route("**/api/auth/login", async (route) => {
+      credentials = route.request().postDataJSON();
+      await route.fulfill({ json: { token: "demo-token", user } });
+    });
+    await page.route("**/api/auth/me", (route) => route.fulfill({ json: user }));
+    await page.goto(role === "admin" ? "/admin/login" : "/login");
+    await page
+      .getByRole("button", {
+        name:
+          role === "admin"
+            ? "Vào nhanh bằng tài khoản quản trị mẫu"
+            : "Vào nhanh bằng tài khoản lập trình viên mẫu",
+      })
+      .click();
+    await expect(page).toHaveURL(role === "admin" ? /\/admin$/ : /\/$/);
+    expect(credentials).toEqual({
+      email: `${role}@sentinel.local`,
+      password: "password",
+    });
+    await page.evaluate(() => localStorage.clear());
+    await page.unroute("**/api/auth/login");
+    await page.unroute("**/api/auth/me");
+  }
+});
+
+test("interface stays Vietnamese even when an old English preference exists", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    localStorage.setItem("sentinel.language", "en");
+  });
   await page.goto("/login");
   await expect(
     page.getByRole("heading", { name: "Đăng nhập không gian làm việc" }),
   ).toBeVisible();
-  await page.getByLabel("Ngôn ngữ").selectOption("en");
-  await expect(
-    page.getByRole("heading", { name: "Sign in to your workspace" }),
-  ).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "vi");
+  await expect(page.getByLabel("Ngôn ngữ")).toHaveCount(0);
   await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Sign in to your workspace" }),
-  ).toBeVisible();
-  await page.screenshot({ path: "test-results/login-en.png", fullPage: true });
-  await page.getByLabel("Language").selectOption("vi");
   await expect(
     page.getByRole("heading", { name: "Đăng nhập không gian làm việc" }),
   ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "vi");
+  await page.screenshot({ path: "test-results/login-vi.png", fullPage: true });
   expect(errors).toEqual([]);
 });
 
@@ -585,7 +608,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page.locator(".project-card").click();
   await expect(page.locator(".source-workspace")).toBeVisible();
   await expect(page.locator(".review-workspace")).toHaveCount(0);
-  await page.getByRole("button", { name: "Quét source", exact: true }).click();
+  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
   await expect(page.locator(".review-workspace")).toBeVisible();
   await expect(page.locator(".issue-card p")).toHaveCount(0);
   await expect(page.locator(".issue-card-meta")).toBeVisible();
@@ -629,25 +652,24 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page.locator(".breadcrumbs").getByRole("button").click();
   await page.locator(".project-card").click();
   await expect(page.locator(".source-workspace")).toBeVisible();
-  await page.getByLabel("Ngôn ngữ").selectOption("en");
   await expect(
-    page.getByRole("heading", { name: "Source code", exact: true }),
+    page.getByRole("heading", { name: "Mã nguồn", exact: true }),
   ).toBeVisible();
   await page
     .locator(".workflow-tabs")
-    .getByRole("button", { name: /Issues & fixes/ })
+    .getByRole("button", { name: /Vấn đề & bản sửa/ })
     .click();
-  await page.getByLabel("Filter by severity").selectOption("HIGH");
+  await page.getByLabel("Lọc mức độ lỗi").selectOption("HIGH");
   await expect(page.locator(".issue-card")).toHaveCount(1);
-  await expect(page.locator(".issue-card .severity")).toHaveText("High");
+  await expect(page.locator(".issue-card .severity")).toHaveText("Cao");
   await page
-    .getByLabel("Search issues", { exact: true })
+    .getByLabel("Tìm vấn đề", { exact: true })
     .fill("no matching issue");
   await expect(page.locator(".issue-card")).toHaveCount(0);
   await expect(page.locator(".proposal-panel h2")).toHaveCount(0);
-  await page.getByLabel("Search issues", { exact: true }).clear();
-  await page.screenshot({ path: "test-results/review-en.png", fullPage: true });
-  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await page.getByLabel("Tìm vấn đề", { exact: true }).clear();
+  await page.screenshot({ path: "test-results/review-vi.png", fullPage: true });
+  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect(result.errors).toEqual([]);
 });
@@ -670,7 +692,7 @@ test("upload confirmation, modal keyboard, fixed sidebar and narrow viewport", a
       buffer: Buffer.from("# Mã nguồn tiếng Việt\nx = 1"),
     });
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("button", { name: "Tải và thay source" }).click();
+  await page.getByRole("button", { name: "Tải và thay mã nguồn" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(result.uploaded()).toBe(true);
   const workflow = page.locator(".workflow-rail");
@@ -728,28 +750,24 @@ test("admin only displays chosen section, can filter and lock users", async ({
   await expect(
     page.getByRole("button", { name: "Mở khóa", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Tìm Developer").fill("unmatched");
+  await page.getByLabel("Tìm lập trình viên").fill("unmatched");
   await expect(
     page.getByText("Không tìm thấy tài khoản phù hợp."),
   ).toBeVisible();
-  await page.getByLabel("Tìm Developer").clear();
-  await page.getByLabel("Ngôn ngữ").selectOption("en");
-  await expect(
-    page.getByRole("heading", { name: "Users", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "＋ Add developer" }).click();
+  await page.getByLabel("Tìm lập trình viên").clear();
+  await page.getByRole("button", { name: "＋ Thêm lập trình viên" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.screenshot({ path: "test-results/admin-en.png", fullPage: true });
+  await page.screenshot({ path: "test-results/admin-vi.png", fullPage: true });
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Projects", exact: true })
+    .getByRole("button", { name: "Dự án", exact: true })
     .click();
   await expect(page.locator("#users")).not.toBeVisible();
   await expect(page.locator("#projects")).toBeVisible();
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Activity log" })
+    .getByRole("button", { name: "Nhật ký hoạt động" })
     .click();
   await expect(page.locator("#projects")).not.toBeVisible();
   await expect(page.locator("#activities")).toBeVisible();

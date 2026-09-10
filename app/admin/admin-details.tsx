@@ -41,7 +41,7 @@ export function Drawer({
       >
         <header className="drawer-heading">
           <div>
-            <span className="admin-kicker">SENTINEL / ADMIN</span>
+            <span className="admin-kicker">SENTINEL / QUẢN TRỊ</span>
             <h2 id="drawer-title">{title}</h2>
           </div>
           <button
@@ -177,7 +177,7 @@ export function UserDrawer({
           <Facts
             items={[
               ["Mã tài khoản", user.id],
-              ["Vai trò", "Developer"],
+              ["Vai trò", "Lập trình viên"],
               ["Ngày tạo", dateLabel(user.createdAt)],
               ["Cập nhật", dateLabel(user.updatedAt)],
               ["Dự án", user.projectCount],

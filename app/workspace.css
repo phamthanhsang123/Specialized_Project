@@ -217,6 +217,30 @@
   right: 28px;
   top: 24px;
 }
+.demo-login-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 16px;
+  border: 1px solid #c9d7f6;
+  border-radius: 8px;
+  background: #f4f7ff;
+  color: #315fc5;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.demo-login-button:hover:not(:disabled) {
+  border-color: #7d9ce9;
+  background: #eaf0ff;
+}
+.demo-login-button:focus-visible {
+  outline: 3px solid #b9caff;
+  outline-offset: 2px;
+}
+.demo-login-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
 .text-link {
   background: transparent;
   color: #3565c8;

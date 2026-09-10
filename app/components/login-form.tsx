@@ -15,7 +15,6 @@ import {
 } from "../../lib/api";
 import type { LoginResponse, User } from "../../lib/types";
 import { landingPath } from "../../lib/auth";
-import { LanguageSwitcher } from "./language-switcher";
 import { useMessage } from "./use-message";
 export default function LoginForm({ admin = false }: { admin?: boolean }) {
   useTranslation();
@@ -44,18 +43,16 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
     }
     return () => controller.abort();
   }, [router]);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function signIn(email: string, password: string) {
     if (busy) return;
-    const data = new FormData(event.currentTarget);
     setBusy(true);
     setMessage("");
     try {
       const result = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          email: String(data.get("email")).trim(),
-          password: String(data.get("password")),
+          email: email.trim(),
+          password,
         }),
       });
       setToken(result.token);
@@ -68,7 +65,7 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
         clearToken();
         void revocation.catch(() => {});
         setMessage(
-          "Tài khoản này không có quyền Admin. Hãy dùng trang đăng nhập Developer.",
+          "Tài khoản này không có quyền quản trị. Hãy dùng trang đăng nhập dành cho lập trình viên.",
         );
         return;
       }
@@ -79,16 +76,27 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
       setBusy(false);
     }
   }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await signIn(String(data.get("email")), String(data.get("password")));
+  }
+  function quickLogin() {
+    void signIn(
+      admin ? "admin@sentinel.local" : "developer@sentinel.local",
+      "password",
+    );
+  }
   return (
     <main className={`login-page${admin ? " admin-login-page" : ""}`}>
       <section className="login-art">
         <div className="login-brand">
-          <span>✦</span> sentinel <small>AI CODE REVIEW</small>
+          <span>✦</span> sentinel <small>DUYỆT MÃ NGUỒN BẰNG AI</small>
         </div>
         <div className="login-copy">
           <p>
             {admin
-              ? "ADMINISTRATION CONSOLE"
+              ? "BẢNG ĐIỀU KHIỂN QUẢN TRỊ"
               : t("NỀN TẢNG PHÁT TRIỂN AN TOÀN")}
           </p>
           <h1>
@@ -130,12 +138,9 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
         </div>
       </section>
       <section className="login-form-wrap">
-        <div className="login-language">
-          <LanguageSwitcher />
-        </div>
         <form className="login-form" onSubmit={submit}>
           <p className="form-eyebrow">
-            {admin ? "ADMINISTRATOR ACCESS" : t("CHÀO MỪNG TRỞ LẠI")}
+            {admin ? "TRUY CẬP QUẢN TRỊ" : t("CHÀO MỪNG TRỞ LẠI")}
           </p>
           <h2>
             {admin
@@ -147,11 +152,11 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           </p>
           <div className="role-picker">
             <Link className={!admin ? "selected" : ""} href="/login">
-              <b>⌘ Developer</b>
+              <b>⌘ Lập trình viên</b>
               <small>{t("Phân tích và sửa mã nguồn")}</small>
             </Link>
             <Link className={admin ? "selected" : ""} href="/admin/login">
-              <b>♙ Admin</b>
+              <b>♙ Quản trị viên</b>
               <small>{t("Quản lý hệ thống")}</small>
             </Link>
           </div>
@@ -185,6 +190,18 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           <button className="login-submit" type="submit" disabled={busy}>
             {busy ? t("Đang xác thực…") : t("Đăng nhập")}
             <span aria-hidden="true">→</span>
+          </button>
+          <button
+            className="demo-login-button"
+            type="button"
+            disabled={busy}
+            onClick={quickLogin}
+          >
+            {busy
+              ? t("Đang xác thực…")
+              : admin
+                ? t("Vào nhanh bằng tài khoản quản trị mẫu")
+                : t("Vào nhanh bằng tài khoản lập trình viên mẫu")}
           </button>
           {message && (
             <p className="login-message error-text" role="alert">

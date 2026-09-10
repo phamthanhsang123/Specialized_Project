@@ -13,7 +13,6 @@ import {
 import { ApiError, apiFetch, errorMessage, isAborted } from "../../lib/api";
 import { useSession } from "../../lib/auth";
 import type { AdminOverview, AdminUser } from "../../lib/types";
-import { LanguageSwitcher } from "../components/language-switcher";
 import { useMessage } from "../components/use-message";
 import { useDialog } from "../components/use-dialog";
 import { useStepFocus } from "../components/use-step-focus";
@@ -238,7 +237,7 @@ export default function AdminPage() {
             <Icon name="spark" size={20} />
           </span>
           <span>sentinel</span>
-          <small>ADMIN CONSOLE</small>
+          <small>BẢNG QUẢN TRỊ</small>
         </div>
         <div className="admin-workspace">
           <span className="admin-avatar admin-avatar-gold">S</span>
@@ -280,13 +279,12 @@ export default function AdminPage() {
       <section className="admin-content" ref={viewport}>
         <header className="admin-topbar">
           <div>
-            <span className="admin-kicker">ADMINISTRATION</span>
+            <span className="admin-kicker">QUẢN TRỊ</span>
             <h1>
               {t(navigation.find((item) => item.id === activeNav)?.label ?? "")}
             </h1>
           </div>
           <div className="admin-top-actions">
-            <LanguageSwitcher />
             <span className="admin-live">
               {updatedAt
                 ? t("Cập nhật {{v0}}", { v0: dateLabel(updatedAt) })
@@ -406,7 +404,7 @@ export default function AdminPage() {
                 </div>
                 <div className="user-table">
                   <div className="user-row table-header">
-                    <span>DEVELOPER</span>
+                    <span>LẬP TRÌNH VIÊN</span>
                     <span>{t("Dự án")}</span>
                     <span>{t("VẤN ĐỀ")}</span>
                     <span>{t("TRẠNG THÁI")}</span>

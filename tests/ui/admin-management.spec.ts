@@ -127,7 +127,7 @@ test("user pagination, details and duplicate email validation", async ({
   await expect(page.locator(".admin-name-link")).toHaveCount(10);
   await page.getByRole("button", { name: "Trang sau", exact: true }).click();
   await expect(page.locator(".admin-name-link")).toHaveCount(2);
-  await page.getByLabel("Tìm Developer").fill("Nguyễn");
+  await page.getByLabel("Tìm lập trình viên").fill("Nguyễn");
   await expect(page.locator(".admin-name-link")).toHaveCount(1);
   await page.getByRole("button", { name: "Xem tài khoản Nguyễn Ánh" }).click();
   const drawer = page.getByRole("dialog");
@@ -204,7 +204,7 @@ test("lock can be cancelled; reset validates confirmation and flags next login",
   expect(state.errors).toEqual([]);
 });
 
-test("project filters and read-only details fit mobile in both languages", async ({
+test("project filters and read-only details fit mobile in Vietnamese", async ({
   page,
 }) => {
   const state = await setup(page);
@@ -230,12 +230,11 @@ test("project filters and read-only details fit mobile in both languages", async
     fullPage: true,
   });
   await page.keyboard.press("Escape");
-  await page.getByLabel("Ngôn ngữ").selectOption("en");
   await page.locator(".admin-project-button").click();
   await expect(
-    page.getByRole("heading", { name: "Project details", exact: true }),
+    page.getByRole("heading", { name: "Chi tiết dự án", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("dialog")).toContainText("Latest test");
+  await expect(page.getByRole("dialog")).toContainText("Kiểm thử gần nhất");
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });

@@ -13,7 +13,6 @@ import {
 import { landingPath } from "../../lib/auth";
 import type { User } from "../../lib/types";
 import { t } from "../../lib/i18n";
-import { LanguageSwitcher } from "../components/language-switcher";
 import { useMessage } from "../components/use-message";
 
 export default function ChangePasswordPage() {
@@ -108,7 +107,6 @@ export default function ChangePasswordPage() {
       <div className="password-card">
         <header>
           <b className="password-brand">✦ sentinel</b>
-          <LanguageSwitcher />
         </header>
         <p className="form-eyebrow">{t("BẢO MẬT TÀI KHOẢN")}</p>
         <h1>{done ? t("Đã đổi mật khẩu") : t("Đổi mật khẩu tạm")}</h1>

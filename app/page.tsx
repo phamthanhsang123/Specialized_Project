@@ -35,7 +35,6 @@ import {
   initials,
   SessionGate,
 } from "./components/ui";
-import { LanguageSwitcher } from "./components/language-switcher";
 import { useMessage } from "./components/use-message";
 import { useDialog } from "./components/use-dialog";
 import TestExplanation from "./components/test-explanation";
@@ -811,7 +810,7 @@ export default function Home() {
             <span className="avatar">{initials(user.fullName)}</span>
             <div>
               <b>{user.fullName}</b>
-              <small>Developer</small>
+              <small>Lập trình viên</small>
             </div>
           </div>
           <button
@@ -889,7 +888,6 @@ export default function Home() {
               })}
             </nav>
           )}
-          <LanguageSwitcher />
           {activeNav !== "projects" && processingStep && (
             <p className="sr-only" role="status">
               {t("Đang xử lý bước {{step}}.", {

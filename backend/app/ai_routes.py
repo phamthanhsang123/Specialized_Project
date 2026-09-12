@@ -14,7 +14,10 @@ router = APIRouter(tags=["AI"], dependencies=[Depends(require_developer)])
 
 
 def project_access(project_id: str, db: Session, user: User) -> Project:
-    project = db.get(Project, project_id)
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.deleted_at.is_(None),
+    ).first()
     if project is None or (user.role != "admin" and project.owner_id != user.id):
         raise HTTPException(status_code=404, detail="Không tìm thấy project")
     return project

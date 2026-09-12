@@ -80,15 +80,21 @@ def admin_user_to_out(user: User, db: Session) -> dict:
         **user_to_out(user),
         "createdAt": user.created_at,
         "updatedAt": user.updated_at,
-        "projectCount": db.query(Project).filter(Project.owner_id == user.id).count(),
-        "issueCount": db.query(Issue).join(Project).filter(Project.owner_id == user.id).count(),
+        "projectCount": db.query(Project).filter(
+            Project.owner_id == user.id, Project.deleted_at.is_(None)
+        ).count(),
+        "issueCount": db.query(Issue).join(Project).filter(
+            Project.owner_id == user.id, Project.deleted_at.is_(None)
+        ).count(),
     }
 
 
 @router.get("/overview")
 def overview(db: Session = Depends(get_db)) -> dict:
     users = db.query(User).filter(User.role == "developer").order_by(User.created_at.desc()).all()
-    projects = db.query(Project).options(joinedload(Project.owner)).order_by(Project.updated_at.desc()).all()
+    projects = db.query(Project).options(joinedload(Project.owner)).filter(
+        Project.deleted_at.is_(None)
+    ).order_by(Project.updated_at.desc()).all()
     issue_counts = dict(db.query(Issue.project_id, func.count(Issue.id)).group_by(Issue.project_id).all())
     project_by_id = {project.id: project for project in projects}
     people = {user.id: user for user in db.query(User).all()}
@@ -147,7 +153,9 @@ def overview(db: Session = Depends(get_db)) -> dict:
 
 @router.get("/projects/{project_id}")
 def project_detail(project_id: str, db: Session = Depends(get_db)) -> dict:
-    project = db.get(Project, project_id)
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.deleted_at.is_(None)
+    ).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy project")
     latest = db.query(TestResult).filter(TestResult.project_id == project_id).order_by(TestResult.created_at.desc(), TestResult.id.desc()).first()
@@ -193,9 +201,12 @@ def activities(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=1
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     result = db.execute(query.order_by(rows.c.created_at.desc(), rows.c.id.desc()).offset((page - 1) * page_size).limit(page_size)).mappings()
     people = {user.id: user for user in db.query(User).all()}
-    projects = {project.id: project for project in db.query(Project).all()}
+    projects = {
+        project.id: project
+        for project in db.query(Project).filter(Project.deleted_at.is_(None)).all()
+    }
     items = []
-    safe_keys = {"user_id", "email", "full_name", "reason", "previous_email", "previous_full_name", "issue_id", "issue_type", "file_path", "review_id"}
+    safe_keys = {"user_id", "email", "full_name", "reason", "previous_email", "previous_full_name", "issue_id", "issue_type", "file_path", "review_id", "project_name"}
     for row in result:
         try:
             detail = json.loads(row["detail"])
@@ -208,7 +219,8 @@ def activities(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=1
         project = projects.get(row["project_id"])
         items.append({"id": row["id"], "action": row["action"], "actorId": row["actor_id"],
                       "actorName": (actor.full_name or actor.email) if actor else "Hệ thống",
-                      "projectName": project.name if project else None, "createdAt": row["created_at"], "detail": detail})
+                      "projectName": project.name if project else detail.get("project_name"),
+                      "createdAt": row["created_at"], "detail": detail})
     return {"items": items, "total": total, "page": page, "pageSize": page_size,
             "actors": [{"id": user.id, "name": user.full_name or user.email} for user in people.values()],
             "actions": list(db.scalars(select(rows.c.action).distinct().order_by(rows.c.action)))}

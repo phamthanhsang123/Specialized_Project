@@ -18,6 +18,10 @@ const actionLabels: Record<string, string> = {
   REJECTED: "Từ chối đề xuất sửa",
   VERSION_SAVED: "Lưu phiên bản",
   TEST_RUN: "Chạy kiểm thử",
+  PROJECT_RENAMED: "Đổi tên dự án",
+  PROJECT_DELETED: "Xóa dự án",
+  PROJECT_RESTORED: "Khôi phục dự án",
+  PROJECT_PERMANENTLY_DELETED: "Xóa vĩnh viễn dự án",
 };
 const detailLabels: Record<string, string> = {
   user_id: "Mã tài khoản",
@@ -26,11 +30,13 @@ const detailLabels: Record<string, string> = {
   reason: "Lý do",
   previous_email: "Email trước đó",
   previous_full_name: "Họ tên trước đó",
+  previous_name: "Tên dự án trước đó",
   issue_id: "Mã vấn đề",
   issue_type: "Loại vấn đề",
   file_path: "Đường dẫn tệp",
   review_id: "Mã duyệt",
   version: "Phiên bản",
+  project_name: "Tên dự án",
 };
 function label(action: string) {
   return t(actionLabels[action] || action);

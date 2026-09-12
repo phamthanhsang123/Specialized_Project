@@ -390,6 +390,7 @@ async function workspace(page: Page, role = "developer") {
     updatedAt: now,
   };
   let projects = [project];
+  let deletedProjects: Array<typeof project & { deletedAt: string }> = [];
   let state = "PENDING";
   let uploaded = false;
   const issue = () => ({
@@ -423,10 +424,26 @@ async function workspace(page: Page, role = "developer") {
     else if (path === "/capabilities")
       result = { aiConfigured: false, analysisModes: ["static"] };
     else if (path === "/projects" && method === "GET") result = projects;
+    else if (path === "/projects/deleted" && method === "GET")
+      result = deletedProjects;
     else if (path === "/projects" && method === "POST") {
       project.name = route.request().postDataJSON().name;
       projects = [project];
       result = project;
+    } else if (path === "/projects/p1" && method === "PATCH") {
+      project.name = route.request().postDataJSON().name;
+      result = project;
+    } else if (path === "/projects/p1" && method === "DELETE") {
+      deletedProjects = [{ ...project, deletedAt: now }];
+      projects = [];
+      result = {};
+    } else if (path === "/projects/p1/restore" && method === "POST") {
+      projects = [project];
+      deletedProjects = [];
+      result = { ...project, deletedAt: null };
+    } else if (path === "/projects/p1/permanent" && method === "DELETE") {
+      deletedProjects = [];
+      result = {};
     } else if (path === "/projects/p1") result = project;
     else if (path.endsWith("/files/content"))
       result = {
@@ -599,6 +616,105 @@ test("interface stays Vietnamese even when an old English preference exists", as
   await expect(page.locator("html")).toHaveAttribute("lang", "vi");
   await page.screenshot({ path: "test-results/login-vi.png", fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test("developer can rename an owned project from its card", async ({
+  page,
+}) => {
+  const result = await workspace(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Đổi tên dự án Payment API" }).click();
+  const dialog = page.locator(".swal2-popup");
+  await expect(dialog).toContainText("Đổi tên dự án");
+  const input = dialog.locator("#swal2-input");
+  await expect(input).toHaveValue("Payment API");
+
+  await dialog
+    .getByRole("button", { name: "Lưu tên mới", exact: true })
+    .click();
+  await expect(dialog).toContainText("Tên mới phải khác tên hiện tại.");
+
+  await input.fill("Payment Gateway");
+  await dialog
+    .getByRole("button", { name: "Lưu tên mới", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".project-card-title")).toHaveText(
+    "Payment Gateway",
+  );
+  await expect(
+    page.getByText("Đã đổi tên dự án thành Payment Gateway."),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/project-renamed-vi.png",
+    fullPage: true,
+  });
+  expect(result.errors).toEqual([]);
+});
+
+test("developer deletes a project only after SweetAlert2 confirmation", async ({
+  page,
+}) => {
+  const result = await workspace(page);
+  await page.goto("/");
+  const deleteButton = page.getByRole("button", {
+    name: "Xóa dự án Payment API",
+  });
+  await expect(deleteButton).toBeVisible();
+  await deleteButton.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Xóa dự án?");
+  await expect(dialog).toContainText("Payment API");
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: "test-results/project-delete-confirmation-vi.png",
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(1);
+
+  await deleteButton.click();
+  await dialog.getByRole("button", { name: "Xóa dự án", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Đã xóa dự án Payment API.")).toBeVisible();
+  await expect(page.locator(".project-card")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Tạo dự án đầu tiên" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Đã xóa gần đây" }).click();
+  await expect(dialog).toContainText("Dự án đã xóa gần đây");
+  await expect(dialog).toContainText("Payment API");
+  await page.screenshot({
+    path: "test-results/recently-deleted-projects-vi.png",
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "Khôi phục", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Đã khôi phục dự án Payment API.")).toBeVisible();
+  await expect(page.locator(".project-card")).toHaveCount(1);
+
+  await deleteButton.click();
+  await page
+    .locator(".swal2-popup")
+    .getByRole("button", { name: "Xóa dự án", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Đã xóa gần đây" }).click();
+  await page
+    .getByRole("dialog", { name: "Dự án đã xóa gần đây" })
+    .getByRole("button", { name: "Xóa vĩnh viễn", exact: true })
+    .click();
+  const permanentDialog = page.locator(".swal2-popup");
+  await expect(permanentDialog).toContainText("Xóa vĩnh viễn dự án?");
+  await permanentDialog
+    .getByRole("button", { name: "Xóa vĩnh viễn", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByText("Đã xóa vĩnh viễn dự án Payment API."),
+  ).toBeVisible();
+  expect(result.errors).toEqual([]);
 });
 
 test("projects first, separate steps, review and apply, filtering and logout", async ({

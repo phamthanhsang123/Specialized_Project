@@ -58,7 +58,8 @@ def project_to_out(project: Project) -> ProjectOut:
                       lastScannedVersion=project.last_scanned_version,
                       sourceFileCount=len(project.files), issueCount=len(project.issues),
                       pendingIssueCount=sum(issue.status == "PENDING" for issue in project.issues),
-                      latestTestStatus=latest_test.status if latest_test else None)
+                      latestTestStatus=latest_test.status if latest_test else None,
+                      deletedAt=project.deleted_at.isoformat() if project.deleted_at else None)
 
 
 def file_to_out(file: SourceFile) -> FileOut:

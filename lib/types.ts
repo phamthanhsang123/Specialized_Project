@@ -26,6 +26,7 @@ export interface Project {
   issueCount?: number;
   pendingIssueCount?: number;
   latestTestStatus?: "PASS" | "FAIL" | "RUNNING" | null;
+  deletedAt?: string | null;
 }
 export interface SourceFile {
   id: string;

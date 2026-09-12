@@ -53,12 +53,14 @@ class Project(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(String(80), default="Python 3.12", nullable=False)
     current_version: Mapped[str] = mapped_column(String(32), default="v1", nullable=False)
     last_scanned_version: Mapped[str | None] = mapped_column(String(32))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
     owner: Mapped[User | None] = relationship(back_populates="projects")
     files: Mapped[list["SourceFile"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     versions: Mapped[list["CodeVersion"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     issues: Mapped[list["Issue"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    test_cases: Mapped[list["TestCase"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     test_results: Mapped[list["TestResult"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
@@ -139,6 +141,8 @@ class TestCase(Base, TimestampMixin):
     expected_output: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
 
+    project: Mapped[Project] = relationship(back_populates="test_cases")
+
 
 class TestResult(Base, TimestampMixin):
     __tablename__ = "test_results"
@@ -190,7 +194,10 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     """
     additions = {
         "users": {"is_active": "BOOLEAN NOT NULL DEFAULT TRUE", "must_change_password": "BOOLEAN NOT NULL DEFAULT FALSE"},
-        "projects": {"last_scanned_version": "VARCHAR(32)"},
+        "projects": {
+            "last_scanned_version": "VARCHAR(32)",
+            "deleted_at": "DATETIME",
+        },
         "code_versions": {"reason": "VARCHAR(64) NOT NULL DEFAULT 'SOURCE_UPDATED'"},
         "fix_proposals": {"base_source_hash": "VARCHAR(64)"},
     }

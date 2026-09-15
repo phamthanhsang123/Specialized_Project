@@ -29,7 +29,10 @@ def finding(**changes):
 
 
 def test_ai_missing_configuration_is_explicit(monkeypatch):
-    monkeypatch.setattr(ai, "configured", lambda: False)
+    def unavailable(_provider_id=None):
+        raise ai.AIUnavailable("Chưa cấu hình khóa API")
+
+    monkeypatch.setattr(ai, "resolve_provider", unavailable)
     with pytest.raises(ai.AIUnavailable):
         ai._request_json("return JSON", {})
 

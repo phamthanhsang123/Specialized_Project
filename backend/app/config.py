@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.6-luna"
     gemini_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     xai_api_key: str = ""
     xai_base_url: str = "https://api.x.ai/v1"
     xai_model: str = "grok-4.6"

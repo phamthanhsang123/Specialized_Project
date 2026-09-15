@@ -380,7 +380,7 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
           {
             id: "gemini",
             name: "Google Gemini",
-            model: "gemini-3.8-flash",
+            model: "gemini-3.5-flash-lite",
             configured: true,
             freeTier: true,
           },
@@ -477,7 +477,7 @@ async function workspace(page: Page, role = "developer") {
           {
             id: "gemini",
             name: "Google Gemini",
-            model: "gemini-3.8-flash",
+            model: "gemini-3.5-flash-lite",
             configured: false,
             freeTier: true,
           },

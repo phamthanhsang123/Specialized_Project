@@ -68,7 +68,7 @@ Website cho phép chọn Google Gemini, OpenAI hoặc xAI Grok tại thời đi�
 ```dotenv
 AI_DEFAULT_PROVIDER=gemini
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.6-luna

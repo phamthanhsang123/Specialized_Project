@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "check:i18n": "node scripts/check-i18n.mjs",
     "test:ui": "playwright test",
-    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:unit": "node scripts/run-unit-tests.mjs",
     "lint": "next lint"
   },
   "dependencies": {

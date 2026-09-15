@@ -444,7 +444,7 @@
   "Xóa dự án?": "Delete project?",
   "Xóa dự án": "Delete project",
   "Xóa dự án {{name}}": "Delete project {{name}}",
-  "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Toàn bộ mã nguồn, kết quả phân tích, kiểm thử và lịch sử phiên bản sẽ bị xóa.": "Are you sure you want to delete \"{{name}}\"? All source code, analysis results, tests, and version history will be deleted.",
+  "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Dự án sẽ được chuyển vào thùng rác và có thể khôi phục trước khi xóa vĩnh viễn.": "Move \"{{name}}\" to the trash? You can restore it before permanently deleting it.",
   "Đang xóa dự án…": "Deleting project…",
   "Đã xóa dự án {{v0}}.": "Deleted project {{v0}}.",
   "Đã xóa dự án": "Project deleted",

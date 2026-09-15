@@ -579,7 +579,7 @@ export default function Home() {
     const confirmation = await Swal.fire({
       title: t("Xóa dự án?"),
       text: t(
-        'Bạn có chắc chắn muốn xóa dự án "{{name}}"? Toàn bộ mã nguồn, kết quả phân tích, kiểm thử và lịch sử phiên bản sẽ bị xóa.',
+        'Bạn có chắc chắn muốn xóa dự án "{{name}}"? Dự án sẽ được chuyển vào thùng rác và có thể khôi phục trước khi xóa vĩnh viễn.',
         { name: project.name },
       ),
       icon: "warning",

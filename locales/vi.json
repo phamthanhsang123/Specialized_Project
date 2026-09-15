@@ -439,7 +439,7 @@
   "Xóa dự án?": "Xóa dự án?",
   "Xóa dự án": "Xóa dự án",
   "Xóa dự án {{name}}": "Xóa dự án {{name}}",
-  "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Toàn bộ mã nguồn, kết quả phân tích, kiểm thử và lịch sử phiên bản sẽ bị xóa.": "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Toàn bộ mã nguồn, kết quả phân tích, kiểm thử và lịch sử phiên bản sẽ bị xóa.",
+  "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Dự án sẽ được chuyển vào thùng rác và có thể khôi phục trước khi xóa vĩnh viễn.": "Bạn có chắc chắn muốn xóa dự án \"{{name}}\"? Dự án sẽ được chuyển vào thùng rác và có thể khôi phục trước khi xóa vĩnh viễn.",
   "Đang xóa dự án…": "Đang xóa dự án…",
   "Đã xóa dự án {{v0}}.": "Đã xóa dự án {{v0}}.",
   "Đã xóa dự án": "Đã xóa dự án",

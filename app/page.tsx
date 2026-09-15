@@ -357,77 +357,84 @@ export default function Home() {
     },
     [selectProject],
   );
-  const refreshProject = useCallback(async (id: string) => {
-    if (currentProject.current !== id) return false;
-    projectController.current?.abort();
-    const controller = new AbortController();
-    projectController.current = controller;
-    const serial = ++requestSerial.current;
-    const options = {
-      signal: controller.signal,
-    };
-    const base = `/projects/${encodeURIComponent(id)}`;
-    setLoading(true);
-    try {
-      const [project, files, newIssues, tests, versions, testCases] =
-        await Promise.all([
-          apiFetch<Project>(base, options),
-          apiFetch<SourceFile[]>(`${base}/files`, options),
-          apiFetch<Issue[]>(`${base}/issues`, options),
-          apiFetch<TestRun[]>(`${base}/test-runs`, options),
-          apiFetch<CodeVersion[]>(`${base}/versions`, options),
-          apiFetch<TestCase[]>(`${base}/test-cases`, options),
-        ]);
-      if (
-        currentProject.current !== id ||
-        serial !== requestSerial.current ||
-        controller.signal.aborted
-      )
-        return false;
-      setData({
-        project,
-        files,
-        issues: newIssues,
-        tests,
-        versions,
-        testCases,
-      });
-      setProjects((current) =>
-        current.map((item) => (item.id === id ? project : item)),
-      );
-      setSelectedFile((current) =>
-        files.some((item) => item.path === current)
-          ? current
-          : (files[0]?.path ?? ""),
-      );
-      setSelectedIssueId((current) =>
-        newIssues.some((item) => item.id === current)
-          ? current
-          : (newIssues[0]?.id ?? ""),
-      );
-      setStale(false);
-      setRecovery("");
-      setError("");
-      return true;
-    } catch (failure) {
-      if (
-        !isAborted(failure) &&
-        currentProject.current === id &&
-        serial === requestSerial.current
-      ) {
-        setStale(true);
-        setError(
-          t("Không tải được dữ liệu project: {{v0}}", {
-            v0: errorMessage(failure),
-          }),
+  const refreshProject = useCallback(
+    async (id: string, options: { silent?: boolean } = {}) => {
+      if (currentProject.current !== id) return false;
+      projectController.current?.abort();
+      const controller = new AbortController();
+      projectController.current = controller;
+      const serial = ++requestSerial.current;
+      const requestOptions = {
+        signal: controller.signal,
+      };
+      const base = `/projects/${encodeURIComponent(id)}`;
+      if (!options.silent) setLoading(true);
+      try {
+        const [project, files, newIssues, tests, versions, testCases] =
+          await Promise.all([
+            apiFetch<Project>(base, requestOptions),
+            apiFetch<SourceFile[]>(`${base}/files`, requestOptions),
+            apiFetch<Issue[]>(`${base}/issues`, requestOptions),
+            apiFetch<TestRun[]>(`${base}/test-runs`, requestOptions),
+            apiFetch<CodeVersion[]>(`${base}/versions`, requestOptions),
+            apiFetch<TestCase[]>(`${base}/test-cases`, requestOptions),
+          ]);
+        if (
+          currentProject.current !== id ||
+          serial !== requestSerial.current ||
+          controller.signal.aborted
+        )
+          return false;
+        setData({
+          project,
+          files,
+          issues: newIssues,
+          tests,
+          versions,
+          testCases,
+        });
+        setProjects((current) =>
+          current.map((item) => (item.id === id ? project : item)),
         );
+        setSelectedFile((current) =>
+          files.some((item) => item.path === current)
+            ? current
+            : (files[0]?.path ?? ""),
+        );
+        setSelectedIssueId((current) =>
+          newIssues.some((item) => item.id === current)
+            ? current
+            : (newIssues[0]?.id ?? ""),
+        );
+        setStale(false);
+        setRecovery("");
+        setError("");
+        return true;
+      } catch (failure) {
+        if (
+          !isAborted(failure) &&
+          currentProject.current === id &&
+          serial === requestSerial.current
+        ) {
+          setStale(true);
+          setError(
+            t("Không tải được dữ liệu project: {{v0}}", {
+              v0: errorMessage(failure),
+            }),
+          );
+        }
+        return false;
+      } finally {
+        if (
+          !options.silent &&
+          currentProject.current === id &&
+          serial === requestSerial.current
+        )
+          setLoading(false);
       }
-      return false;
-    } finally {
-      if (currentProject.current === id && serial === requestSerial.current)
-        setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
@@ -534,7 +541,7 @@ export default function Home() {
     try {
       await action(id, controller.signal);
       if (currentProject.current === id) {
-        const fresh = await refreshProject(id);
+        const fresh = await refreshProject(id, { silent: true });
         if (fresh) setNotice(success);
         else
           setRecovery(
@@ -1943,6 +1950,7 @@ export default function Home() {
                             ) && (
                               <div className="review-actions">
                                 <button
+                                  type="button"
                                   className="reject-button"
                                   disabled={
                                     disabled ||
@@ -1958,6 +1966,7 @@ export default function Home() {
                                       : t("Từ chối")}
                                 </button>
                                 <button
+                                  type="button"
                                   className={`accept-button${selectedIssue.status === "ACCEPTED" || (acceptFeedback?.issueId === selectedIssue.id && acceptFeedback.phase === "success") ? " accept-success" : ""}`}
                                   title={
                                     !selectedProposal

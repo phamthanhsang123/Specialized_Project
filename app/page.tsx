@@ -115,6 +115,20 @@ interface UploadSelection {
 const MAX_UPLOAD_FILES = 500;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const UPLOAD_PREVIEW_LIMIT = 6;
+const AI_SCAN_MINIMUM_MS = 3400;
+const AI_SCAN_SUCCESS_MS = 450;
+const AI_SCAN_MESSAGES = [
+  "Đang đọc mã nguồn...",
+  "Đang kiểm tra lỗi...",
+  "Đang phân tích vấn đề...",
+  "Đang chuẩn bị kết quả...",
+];
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) =>
+    window.setTimeout(resolve, milliseconds),
+  );
+}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -164,6 +178,14 @@ export default function Home() {
   const [reviewTab, setReviewTab] = useState<"explanation" | "diff" | "source">(
     "explanation",
   );
+  const [aiScanPhase, setAiScanPhase] = useState<
+    "idle" | "scanning" | "success"
+  >("idle");
+  const [aiScanMessageIndex, setAiScanMessageIndex] = useState(0);
+  const [acceptFeedback, setAcceptFeedback] = useState<{
+    issueId: string;
+    phase: "loading" | "success";
+  } | null>(null);
   const [testSection, setTestSection] = useState<"results" | "cases">(
     "results",
   );
@@ -429,6 +451,18 @@ export default function Home() {
     if (projectId && user) void refreshProject(projectId);
     return () => projectController.current?.abort();
   }, [projectId, user, refreshProject]);
+  useEffect(() => {
+    if (aiScanPhase !== "scanning") return;
+    setAiScanMessageIndex(0);
+    const timer = window.setInterval(
+      () =>
+        setAiScanMessageIndex(
+          (current) => (current + 1) % AI_SCAN_MESSAGES.length,
+        ),
+      800,
+    );
+    return () => window.clearInterval(timer);
+  }, [aiScanPhase]);
   useEffect(() => {
     setContent(null);
     setFileError("");
@@ -922,7 +956,11 @@ export default function Home() {
   }
   async function reviewIssue(action: "accept" | "reject") {
     if (!selectedIssue) return;
-    await performAction(
+    const issueId = selectedIssue.id;
+    if (action === "accept") {
+      setAcceptFeedback({ issueId, phase: "loading" });
+    }
+    const succeeded = await performAction(
       "Đang lưu quyết định…",
       (id, signal) =>
         apiFetch(`/issues/${encodeURIComponent(selectedIssue.id)}/${action}`, {
@@ -934,6 +972,44 @@ export default function Home() {
         : "Đã từ chối đề xuất.",
       "analysis",
     );
+    if (action !== "accept") return;
+    if (!succeeded) {
+      setAcceptFeedback(null);
+      return;
+    }
+    setAcceptFeedback({ issueId, phase: "success" });
+    await wait(550);
+    setAcceptFeedback(null);
+  }
+
+  async function runAnalysis() {
+    const useAI = analysisMode === "ai";
+    if (useAI) setAiScanPhase("scanning");
+    const succeeded = await performAction(
+      "Đang quét…",
+      async (id, signal) => {
+        const request = apiFetch(
+          `/projects/${id}/${useAI ? `ai-scan${aiProvider ? `?provider=${encodeURIComponent(aiProvider)}` : ""}` : "scan"}`,
+          { signal, method: "POST" },
+        );
+        if (useAI) await Promise.all([request, wait(AI_SCAN_MINIMUM_MS)]);
+        else await request;
+      },
+      "Quét hoàn tất. Kết quả được lấy từ source đang lưu.",
+      "analysis",
+    );
+    if (!succeeded) {
+      setAiScanPhase("idle");
+      return;
+    }
+    if (useAI) {
+      setAiScanPhase("success");
+      await wait(AI_SCAN_SUCCESS_MS);
+      setActiveNav("analysis");
+      setAiScanPhase("idle");
+      return;
+    }
+    setActiveNav("analysis");
   }
   async function saveTest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1124,7 +1200,34 @@ export default function Home() {
             </p>
           )}
         </header>
-        {busy && (
+        {aiScanPhase !== "idle" && (
+          <div
+            className={`ai-scan-stage ${aiScanPhase}`}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="ai-scan-indicator" aria-hidden="true">
+              <span className="ai-scan-ring" />
+              <span className="ai-scan-core">
+                <Icon
+                  name={aiScanPhase === "success" ? "check" : "spark"}
+                  size={34}
+                />
+              </span>
+            </div>
+            <strong>
+              {aiScanPhase === "success"
+                ? t("Phân tích hoàn tất")
+                : t("AI đang phân tích mã nguồn")}
+            </strong>
+            <small key={aiScanMessageIndex}>
+              {aiScanPhase === "success"
+                ? t("Đang mở kết quả...")
+                : t(AI_SCAN_MESSAGES[aiScanMessageIndex])}
+            </small>
+          </div>
+        )}
+        {busy && aiScanPhase === "idle" && (
           <div className="toast" role="status">
             {busy}
             {actionController.current && (
@@ -1477,20 +1580,7 @@ export default function Home() {
                       <button
                         className="primary-button"
                         disabled={disabled || !data?.files.length}
-                        onClick={() =>
-                          void performAction(
-                            "Đang quét…",
-                            (id, signal) =>
-                              apiFetch(
-                                `/projects/${id}/${analysisMode === "ai" ? `ai-scan${aiProvider ? `?provider=${encodeURIComponent(aiProvider)}` : ""}` : "scan"}`,
-                                { signal, method: "POST" },
-                              ),
-                            "Quét hoàn tất. Kết quả được lấy từ source đang lưu.",
-                            "analysis",
-                          ).then((ok) => {
-                            if (ok) setActiveNav("analysis");
-                          })
-                        }
+                        onClick={() => void runAnalysis()}
                       >
                         <Icon name="spark" size={16} />
                         {analysisMode === "ai"
@@ -1613,10 +1703,13 @@ export default function Home() {
                           </select>
                         </div>
                         <div className="issue-list">
-                          {filteredIssues.map((issue) => (
+                          {filteredIssues.map((issue, index) => (
                             <button
                               className={`issue-card${selectedIssue?.id === issue.id ? " selected" : ""}`}
                               key={issue.id}
+                              style={{
+                                animationDelay: `${Math.min(index, 8) * 45}ms`,
+                              }}
                               onClick={() => {
                                 setSelectedIssueId(issue.id);
                                 setSelectedFile(issue.filePath);
@@ -1658,7 +1751,10 @@ export default function Home() {
                           )}
                         </div>
                       </article>
-                      <article className="panel proposal-panel">
+                      <article
+                        className="panel proposal-panel"
+                        key={selectedIssue?.id ?? "empty"}
+                      >
                         <div className="panel-title proposal-heading">
                           {selectedIssue ? (
                             <div className="proposal-heading-main">
@@ -1720,7 +1816,10 @@ export default function Home() {
                                 {t("Mã nguồn")}
                               </button>
                             </div>
-                            <div hidden={reviewTab !== "explanation"}>
+                            <div
+                              className="review-tab-panel"
+                              hidden={reviewTab !== "explanation"}
+                            >
                               <div className="issue-overview-blocks">
                                 <section>
                                   <b>{t("Mô tả")}</b>
@@ -1741,7 +1840,10 @@ export default function Home() {
                                 </p>
                               </details>
                             </div>
-                            <div hidden={reviewTab !== "diff"}>
+                            <div
+                              className="review-tab-panel"
+                              hidden={reviewTab !== "diff"}
+                            >
                               {proposalLoading ? (
                                 <Empty>{t("Đang tải đề xuất…")}</Empty>
                               ) : proposalError ? (
@@ -1800,7 +1902,10 @@ export default function Home() {
                                 </div>
                               )}
                             </div>
-                            <div hidden={reviewTab !== "source"}>
+                            <div
+                              className="review-tab-panel"
+                              hidden={reviewTab !== "source"}
+                            >
                               {fileError ? (
                                 <Empty>{fileError}</Empty>
                               ) : content &&
@@ -1827,7 +1932,16 @@ export default function Home() {
                             {(selectedIssue.status === "PENDING" ||
                               selectedIssue.status === "ACCEPTED") && (
                               <div className="review-actions">
-                                {selectedIssue.status === "PENDING" && (
+                                {acceptFeedback?.issueId === selectedIssue.id &&
+                                acceptFeedback.phase === "success" ? (
+                                  <button
+                                    className="accept-button accept-success"
+                                    disabled
+                                  >
+                                    <Icon name="check" size={16} />
+                                    {t("Đã chấp nhận")}
+                                  </button>
+                                ) : selectedIssue.status === "PENDING" ? (
                                   <>
                                     <button
                                       className="reject-button"
@@ -1855,20 +1969,39 @@ export default function Home() {
                                       }
                                       onClick={() => void reviewIssue("accept")}
                                     >
-                                      <Icon name="check" size={16} />
-                                      {t("Chấp nhận bản sửa")}
+                                      {acceptFeedback?.issueId ===
+                                        selectedIssue.id &&
+                                      acceptFeedback.phase === "loading" ? (
+                                        <>
+                                          <span
+                                            className="button-spinner"
+                                            aria-hidden="true"
+                                          />
+                                          {t("Đang chấp nhận...")}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Icon name="check" size={16} />
+                                          {t("Chấp nhận bản sửa")}
+                                        </>
+                                      )}
                                     </button>
                                   </>
-                                )}
-                                {selectedIssue.status === "ACCEPTED" && (
-                                  <button
-                                    className="reject-button"
-                                    disabled={disabled}
-                                    onClick={() => void reviewIssue("reject")}
-                                  >
-                                    {t("Đổi sang từ chối")}
-                                  </button>
-                                )}
+                                ) : null}
+                                {selectedIssue.status === "ACCEPTED" &&
+                                  !(
+                                    acceptFeedback?.issueId ===
+                                      selectedIssue.id &&
+                                    acceptFeedback.phase === "success"
+                                  ) && (
+                                    <button
+                                      className="reject-button"
+                                      disabled={disabled}
+                                      onClick={() => void reviewIssue("reject")}
+                                    >
+                                      {t("Đổi sang từ chối")}
+                                    </button>
+                                  )}
                               </div>
                             )}
                           </>

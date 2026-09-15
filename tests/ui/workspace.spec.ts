@@ -407,7 +407,14 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
   await page.getByLabel("Chế độ phân tích").selectOption("ai");
   await page.getByLabel("Nhà cung cấp AI").selectOption("openai");
   await page.getByRole("button", { name: "Quét bằng AI" }).click();
+  await expect(page.locator(".ai-scan-stage.scanning")).toContainText(
+    "AI đang phân tích mã nguồn",
+  );
   await expect.poll(() => selectedProvider).toBe("openai");
+  await expect(page.locator(".ai-scan-stage.success")).toContainText(
+    "Phân tích hoàn tất",
+  );
+  await expect(page.locator(".review-workspace")).toBeVisible();
 });
 
 // API fixtures are intercepted: UI tests never overwrite the user's projects.
@@ -821,6 +828,9 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();
+  await expect(
+    page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: /Áp dụng 1/ })).toBeEnabled();
   await page.getByRole("button", { name: /Áp dụng 1/ }).click();
   await expect(page.locator(".testing-workspace")).toBeVisible();

@@ -847,6 +847,7 @@
   background: linear-gradient(135deg, #f8faff, #eef3ff);
   color: #2854b7;
   box-shadow: 0 0 0 2px rgba(71, 116, 222, 0.1);
+  animation: workflow-active-glow 2.4s ease-in-out infinite;
 }
 .workflow-step.complete {
   border-color: #bfe7d8;
@@ -890,6 +891,7 @@
 .workflow-step.complete .workflow-step-number {
   background: #22a979;
   color: #fff;
+  animation: workflow-check-in 0.32s cubic-bezier(0.2, 0.8, 0.3, 1.35);
 }
 .workflow-step.failed .workflow-step-number {
   background: #d8665e;
@@ -931,6 +933,8 @@
   width: 100%;
   height: 2px;
   background: #d6dfeb;
+  transform-origin: left;
+  transition: background-color 0.3s ease;
 }
 .workflow-connector b {
   position: absolute;
@@ -947,6 +951,9 @@
 .workflow-connector.processing i {
   background: #4d78df;
 }
+.workflow-connector.complete i {
+  animation: workflow-line-complete 0.38s ease-out;
+}
 .workflow-connector.complete b,
 .workflow-connector.processing b {
   color: #3567d7;
@@ -959,6 +966,22 @@
 @keyframes workflow-processing {
   50% {
     box-shadow: 0 0 0 4px rgba(62, 112, 221, 0.13);
+  }
+}
+@keyframes workflow-active-glow {
+  50% {
+    box-shadow: 0 0 0 3px rgba(71, 116, 222, 0.12);
+  }
+}
+@keyframes workflow-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+}
+@keyframes workflow-line-complete {
+  from {
+    transform: scaleX(0);
   }
 }
 @keyframes workflow-line-processing {
@@ -994,6 +1017,104 @@
   font-size: 13px;
   color: #79879b;
   line-height: 1.6;
+}
+.workspace-v2 > .content {
+  position: relative;
+}
+.ai-scan-stage {
+  position: absolute;
+  z-index: 20;
+  inset: 96px 0 0;
+  display: flex;
+  min-height: calc(100dvh - 96px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 120px;
+  background: rgba(246, 248, 252, 0.97);
+  animation: ai-stage-in 0.25s ease-out;
+}
+.ai-scan-indicator {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  margin-bottom: 24px;
+  border-radius: 50%;
+  filter: drop-shadow(0 8px 18px rgba(50, 104, 238, 0.16));
+}
+.ai-scan-ring {
+  position: absolute;
+  inset: 0;
+  border: 7px solid rgba(74, 112, 219, 0.13);
+  border-top-color: #3268ee;
+  border-right-color: #6378db;
+  border-radius: 50%;
+  animation: ai-ring-spin 1s linear infinite;
+}
+.ai-scan-core {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border: 1px solid rgba(83, 109, 210, 0.18);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffffff, #edf2ff);
+  color: #3268ee;
+  box-shadow: inset 0 0 20px rgba(80, 104, 205, 0.07);
+  animation: ai-core-breathe 1.8s ease-in-out infinite;
+}
+.ai-scan-stage strong {
+  color: #1e3354;
+  font-size: 20px;
+}
+.ai-scan-stage small {
+  margin-top: 10px;
+  color: #74839a;
+  font-size: 13px;
+  animation: ai-message-in 0.28s ease-out;
+}
+.ai-scan-stage.success .ai-scan-ring {
+  border-color: #22a979;
+  animation: ai-success-ring 0.36s ease-out both;
+}
+.ai-scan-stage.success .ai-scan-core {
+  color: #22a979;
+  animation: ai-success-check 0.38s cubic-bezier(0.2, 0.8, 0.3, 1.35) both;
+}
+@keyframes ai-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ai-core-breathe {
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes ai-stage-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ai-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes ai-success-ring {
+  from {
+    opacity: 0.5;
+    transform: scale(0.88);
+  }
+}
+@keyframes ai-success-check {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
 }
 .source-workspace {
   display: grid;
@@ -1044,6 +1165,12 @@
   gap: 14px;
   align-items: start;
 }
+.review-workspace .issue-panel {
+  animation: result-panel-left 0.38s ease-out both;
+}
+.review-workspace .proposal-panel {
+  animation: result-panel-up 0.38s ease-out both;
+}
 .review-workspace .issue-list {
   height: auto;
   max-height: min(570px, calc(100dvh - 330px));
@@ -1055,6 +1182,8 @@
 }
 .review-workspace .issue-card {
   padding: 12px 14px;
+  opacity: 0;
+  animation: result-item-in 0.3s ease-out both;
 }
 .review-workspace .issue-card b {
   display: block;
@@ -1111,6 +1240,61 @@
   border-bottom-color: #3267d2;
   color: #3267d2;
   font-weight: 600;
+}
+.review-tab-panel:not([hidden]) {
+  animation: review-content-in 0.24s ease-out both;
+}
+.button-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: button-spin 0.65s linear infinite;
+}
+.accept-button.accept-success {
+  border-color: #1e9a6d;
+  background: #22a979;
+  animation: accept-success 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+@keyframes result-panel-left {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+@keyframes result-panel-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes result-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes review-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes accept-success {
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 4px rgba(34, 169, 121, 0.12);
+  }
 }
 .proposal-panel {
   padding-bottom: 0;
@@ -1752,12 +1936,28 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .workflow-step[aria-current],
+  .workflow-step.complete .workflow-step-number,
   .workflow-step.processing,
+  .workflow-connector.complete i,
   .workflow-connector.processing i,
+  .ai-scan-stage,
+  .ai-scan-ring,
+  .ai-scan-core,
+  .ai-scan-stage small,
+  .review-workspace .issue-panel,
+  .review-workspace .proposal-panel,
+  .review-workspace .issue-card,
+  .review-tab-panel,
+  .button-spinner,
+  .accept-button.accept-success,
   .skeleton-square,
   .skeleton-line,
   .skeleton-pill,
   .skeleton-button {
     animation: none;
+  }
+  .review-workspace .issue-card {
+    opacity: 1;
   }
 }

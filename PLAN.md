@@ -14,6 +14,7 @@ Phạm vi dựa trên cả Thẻ 1 và ba hình trong thẻ Sơ đồ của tài
 - [x] Kiểm tra hồi quy backend, build frontend và luồng nghiệp vụ.
 - [x] Giữ audit độc lập qua rescan/upload/rollback, chặn proposal cũ chưa có source hash.
 - [x] Cập nhật hướng dẫn chạy và kết quả xác minh.
+- [x] Tạo bộ dữ liệu đánh giá ban đầu gồm 20 mẫu và công cụ đo TP/FP/FN, Precision, Recall, F1, mức độ lỗi và tính hợp lệ cú pháp của đề xuất.
 - [ ] Nghiệm thu container thật: Docker Desktop trên máy lỗi socket dockerInference, chưa khởi động được Linux engine.
 - [ ] Nghiệm thu LLM thật: chưa có AI_API_KEY và AI_MODEL.
 
@@ -48,3 +49,11 @@ Docker: đã thử mở Desktop và đổi tên socket cũ để giữ bản d�
 - Frontend `npm run build` đạt sau khi thêm bộ chọn file/thư mục và hỗ trợ bàn phím.
 - Edge headless chọn thư mục thật: giữ `src/main.py`, `src/lib/helpers.py`, bỏ qua README và lưu thành phiên bản mới `v2`.
 - Request upload vượt giới hạn bị chặn với HTTP 413 trước khi FastAPI phân tích multipart; CORS vẫn đúng.
+
+## Kết quả bổ sung ngày 15/09/2026
+
+- Đã nhập nhánh dọn dữ liệu giả và nhánh quản lý vòng đời dự án vào `main` sau khi kiểm tra độc lập.
+- 94 kiểm tra backend, 5 kiểm tra unit và 20 kiểm tra giao diện đạt; 2 bài live được bỏ qua theo cấu hình mặc định.
+- Đã sửa lệnh unit test để chạy được trên Windows; typecheck, bản dịch và production build đạt.
+- Bộ dữ liệu đánh giá 1.0 có 20 mẫu và 10 lỗi gán nhãn. Đường cơ sở tĩnh đạt Precision 1.0, Recall 0.4, F1 0.5714; đây không phải kết quả LLM.
+- Docker client có mặt nhưng Linux engine chưa chạy. Backend chưa cấu hình khóa và model AI nên chưa gọi dịch vụ LLM thật.

@@ -41,6 +41,7 @@ Seed chỉ tạo tài khoản chưa tồn tại, không đặt lại mật khẩ
 4. Duyệt Accept/Reject, bấm Apply. Chỉ patch được chấp nhận, còn khớp source và hợp lệ cú pháp mới được áp dụng. Source thay đổi thì quét/duyệt lại.
 5. Thêm pytest hoặc sinh test AI khi đã cấu hình. Đọc/chỉnh test trước khi chạy.
 6. Chạy test trước/sau bản sửa; xem log thực tế. Rollback tạo một phiên bản mới chứa source được khôi phục.
+7. Có thể đổi tên, chuyển project vào thùng rác, khôi phục hoặc xóa vĩnh viễn project thuộc sở hữu của mình.
 
 Bạn không cần nén lại source sau mỗi lần sửa. Bấm **Tải thư mục**, chọn thư mục project hiện tại rồi xác nhận; trình duyệt sẽ gửi các tệp `.py` và giữ đường dẫn thư mục con. Vì giới hạn bảo mật của trình duyệt, khi muốn đồng bộ thay đổi mới bạn cần chọn lại thư mục; mỗi lần tải sẽ thay source hiện tại và vẫn giữ phiên bản cũ để rollback.
 
@@ -66,7 +67,23 @@ Trong `backend/.env` đặt `AI_API_KEY`, `AI_MODEL`, và tùy chọn `AI_BASE_U
 
 Chỉ khi bấm thao tác AI, source/log mới được gửi tới dịch vụ cấu hình. Không có khóa/model vẫn dùng phân tích tĩnh; không tự gọi API có tính phí khi khởi động. AI hỗ trợ phát hiện/giải thích lỗi, sinh patch, sinh pytest và giải thích log. JSON, vị trí patch, source hash và cú pháp đều được kiểm tra. AI không tự Apply hay thay đổi kết quả pytest. Test AI được lưu tên mới, không ghi đè test người dùng.
 
-Chưa có bộ dữ liệu gán nhãn để đo Precision/Recall/F1/Fix success rate; Admin không hiển thị số giả. Thống kê tài khoản/project/issue/test run lấy từ DB.
+Admin chỉ hiển thị chỉ số AI sau khi có kết quả đánh giá được lưu; không dùng số giả. Thống kê tài khoản/project/issue/test run lấy từ DB. Bộ dữ liệu hiện tại là đường cơ sở nhỏ và cần mở rộng trước báo cáo cuối.
+
+## Đánh giá khả năng phát hiện lỗi
+
+Bộ dữ liệu ban đầu trong `evaluation/` có 20 mẫu Python, gồm 10 lỗi gán nhãn và 10 mẫu đối chứng. Chạy đường cơ sở phân tích tĩnh:
+
+```powershell
+backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode static --output-prefix evaluation\results\static-baseline
+```
+
+Sau khi cấu hình `AI_API_KEY` và `AI_MODEL` trong `backend/.env`, chạy cùng bộ dữ liệu bằng LLM thật:
+
+```powershell
+backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode ai
+```
+
+Công cụ xuất JSON chi tiết và báo cáo Markdown gồm TP, FP, FN, Precision, Recall, F1, độ chính xác mức độ lỗi và tỉ lệ đề xuất đúng cú pháp. Xem hướng dẫn và giới hạn tại [evaluation/README.md](evaluation/README.md).
 
 ## Kiểm tra
 

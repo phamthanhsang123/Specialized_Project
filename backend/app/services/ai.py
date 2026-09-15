@@ -95,6 +95,27 @@ class ScanOutput(BaseModel):
     issues: list[FindingOutput] = Field(max_length=100)
 
 
+AI_SCAN_INSTRUCTION = (
+    'Return {"issues":[{"filePath":string,"lineStart":integer,"lineEnd":integer,'
+    '"type":string,"severity":"CRITICAL|HIGH|MEDIUM|LOW","description":string,'
+    '"explanation":string,"impact":string,"proposal":null or {"originalCode":string,'
+    '"replacementCode":string,"reason":string}}]}. Find actual bugs only. Use exact '
+    "existing paths and 1-based inclusive line ranges. A proposal must replace the complete "
+    "line range verbatim, preserve indentation, and produce valid Python including required "
+    "imports. If not safely fixable in that range, use null. Do not invent confidence scores."
+)
+
+
+def analyze_files_with_ai(contents: dict[str, str]) -> ScanOutput:
+    """Gọi cùng prompt/schema mà luồng quét thật sử dụng, không ghi database."""
+    try:
+        return ScanOutput.model_validate(
+            _request_json(AI_SCAN_INSTRUCTION, {"files": contents})
+        )
+    except ValidationError as error:
+        raise AIOutputError("Danh sách lỗi AI không đúng schema yêu cầu.") from error
+
+
 def _patch_data(start: int, end: int, content: str, proposal: ProposalOutput, path: str) -> dict:
     lines = content.splitlines(keepends=True)
     if not 1 <= start <= end <= len(lines):
@@ -127,12 +148,7 @@ def scan_with_ai(db: Session, project: Project) -> list[Issue]:
     if not files:
         raise AIOutputError("Project chưa có mã nguồn.")
     contents = {file.path: file.content for file in files}
-    instruction = ('Return {"issues":[{"filePath":string,"lineStart":integer,"lineEnd":integer,"type":string,"severity":"CRITICAL|HIGH|MEDIUM|LOW","description":string,"explanation":string,"impact":string,"proposal":null or {"originalCode":string,"replacementCode":string,"reason":string}}]}. '
-                   'Find actual bugs only. Use exact existing paths and 1-based inclusive line ranges. A proposal must replace the complete line range verbatim, preserve indentation, and produce valid Python including required imports. If not safely fixable in that range, use null. Do not invent confidence scores.')
-    try:
-        output = ScanOutput.model_validate(_request_json(instruction, {"files": contents}))
-    except ValidationError as error:
-        raise AIOutputError("Danh sách lỗi AI không đúng schema yêu cầu.") from error
+    output = analyze_files_with_ai(contents)
     prepared = []
     for finding in output.issues:
         content = contents.get(finding.filePath)

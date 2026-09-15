@@ -1,0 +1,381 @@
+{
+  "generatedAt": "2026-09-15T07:15:09.910045+00:00",
+  "datasetVersion": "1.0",
+  "mode": "static",
+  "model": null,
+  "caseCount": 20,
+  "labelCount": 10,
+  "predictionCount": 4,
+  "metrics": {
+    "truePositives": 4,
+    "falsePositives": 0,
+    "falseNegatives": 6,
+    "precision": 1.0,
+    "recall": 0.4,
+    "f1": 0.5714,
+    "severityAccuracy": 1.0,
+    "proposalCount": 3,
+    "proposalSyntaxValidRate": 1.0
+  },
+  "perType": {
+    "BARE_EXCEPT": {
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "BOUNDARY_LOGIC": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "COMMAND_INJECTION": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "DIVISION_BY_ZERO": {
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "HARDCODED_SECRET": {
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "INPUT_VALIDATION": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "NULL_HANDLING": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "PATH_TRAVERSAL": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "RESOURCE_LEAK": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": null,
+      "recall": 0.0
+    },
+    "SQL_INJECTION": {
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  },
+  "cases": [
+    {
+      "id": "sql-injection-positive",
+      "labels": [
+        {
+          "type": "SQL_INJECTION",
+          "lineStart": 4,
+          "lineEnd": 4,
+          "severity": "CRITICAL"
+        }
+      ],
+      "predictions": [
+        {
+          "filePath": "sql-injection-positive.py",
+          "type": "SQL_INJECTION",
+          "rawType": "Possible SQL Injection",
+          "lineStart": 4,
+          "lineEnd": 4,
+          "severity": "CRITICAL",
+          "proposal": null
+        }
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "sql-injection-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "hardcoded-secret-positive",
+      "labels": [
+        {
+          "type": "HARDCODED_SECRET",
+          "lineStart": 1,
+          "lineEnd": 1,
+          "severity": "CRITICAL"
+        }
+      ],
+      "predictions": [
+        {
+          "filePath": "hardcoded-secret-positive.py",
+          "type": "HARDCODED_SECRET",
+          "rawType": "Hard-coded Secret",
+          "lineStart": 1,
+          "lineEnd": 1,
+          "severity": "CRITICAL",
+          "proposal": {
+            "originalCode": "API_KEY = \"benchmark_fake_key_not_a_real_secret\"",
+            "replacementCode": "import os\nAPI_KEY = os.environ[\"API_KEY\"]",
+            "reason": "Read API_KEY from the environment and configure it before running. Rotate a real exposed secret."
+          }
+        }
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "hardcoded-secret-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "division-by-zero-positive",
+      "labels": [
+        {
+          "type": "DIVISION_BY_ZERO",
+          "lineStart": 2,
+          "lineEnd": 2,
+          "severity": "HIGH"
+        }
+      ],
+      "predictions": [
+        {
+          "filePath": "division-by-zero-positive.py",
+          "type": "DIVISION_BY_ZERO",
+          "rawType": "Possible Division by Zero",
+          "lineStart": 2,
+          "lineEnd": 2,
+          "severity": "HIGH",
+          "proposal": {
+            "originalCode": "    return total / count",
+            "replacementCode": "    if count == 0:\n        raise ValueError(\"count must not be zero\")\n    return total / count",
+            "reason": "Reject a zero denominator explicitly. Check that ValueError matches the function's contract."
+          }
+        }
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "division-by-zero-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "bare-except-positive",
+      "labels": [
+        {
+          "type": "BARE_EXCEPT",
+          "lineStart": 4,
+          "lineEnd": 4,
+          "severity": "MEDIUM"
+        }
+      ],
+      "predictions": [
+        {
+          "filePath": "bare-except-positive.py",
+          "type": "BARE_EXCEPT",
+          "rawType": "Bare Except",
+          "lineStart": 4,
+          "lineEnd": 4,
+          "severity": "MEDIUM",
+          "proposal": {
+            "originalCode": "    except:",
+            "replacementCode": "    except Exception:",
+            "reason": "Catch Exception for application errors; a concrete exception is preferable when known."
+          }
+        }
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "bare-except-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "input-validation-positive",
+      "labels": [
+        {
+          "type": "INPUT_VALIDATION",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "severity": "HIGH"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "input-validation-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "null-handling-positive",
+      "labels": [
+        {
+          "type": "NULL_HANDLING",
+          "lineStart": 2,
+          "lineEnd": 2,
+          "severity": "MEDIUM"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "null-handling-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "resource-leak-positive",
+      "labels": [
+        {
+          "type": "RESOURCE_LEAK",
+          "lineStart": 2,
+          "lineEnd": 2,
+          "severity": "MEDIUM"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "resource-leak-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "command-injection-positive",
+      "labels": [
+        {
+          "type": "COMMAND_INJECTION",
+          "lineStart": 4,
+          "lineEnd": 4,
+          "severity": "CRITICAL"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "command-injection-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "path-traversal-positive",
+      "labels": [
+        {
+          "type": "PATH_TRAVERSAL",
+          "lineStart": 6,
+          "lineEnd": 6,
+          "severity": "HIGH"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "path-traversal-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    },
+    {
+      "id": "boundary-logic-positive",
+      "labels": [
+        {
+          "type": "BOUNDARY_LOGIC",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "severity": "MEDIUM"
+        }
+      ],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 1
+    },
+    {
+      "id": "boundary-logic-negative",
+      "labels": [],
+      "predictions": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0
+    }
+  ],
+  "limitations": [
+    "Bộ dữ liệu nhỏ do nhóm tự gán nhãn, chưa đại diện cho mọi dự án Python.",
+    "Khớp phát hiện theo loại lỗi, tệp và vùng dòng giao nhau.",
+    "Đề xuất đúng cú pháp chưa chứng minh bản sửa đúng hành vi."
+  ]
+}

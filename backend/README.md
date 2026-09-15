@@ -10,8 +10,13 @@ GET  /api/auth/me
 POST /api/auth/logout
 GET  /api/capabilities
 GET  /api/projects
+GET  /api/projects/deleted
 POST /api/projects                           {name,language?}
 GET  /api/projects/{id}
+PATCH /api/projects/{id}                    {name}
+DELETE /api/projects/{id}                   chuyển vào thùng rác
+POST /api/projects/{id}/restore             khôi phục từ thùng rác
+DELETE /api/projects/{id}/permanent         xóa vĩnh viễn
 POST /api/projects/{id}/upload                multipart: file (.py/.zip)
 GET  /api/projects/{id}/files
 GET  /api/projects/{id}/files/content?path=...

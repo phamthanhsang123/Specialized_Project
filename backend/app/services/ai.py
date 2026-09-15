@@ -106,7 +106,26 @@ def provider_catalog() -> list[dict]:
     ]
 
 
-def _request_json(instruction: str, data: dict, provider_id: str | None = None) -> dict:
+def _decode_json_object(content: str, list_key: str | None = None) -> dict:
+    """Chuẩn hóa JSON từ các API tương thích nhưng vẫn giữ schema chặt."""
+    candidate: object = content
+    for _ in range(2):
+        if not isinstance(candidate, str):
+            break
+        candidate = json.loads(candidate)
+        if isinstance(candidate, dict):
+            return candidate
+        if isinstance(candidate, list) and list_key:
+            return {list_key: candidate}
+    raise AIOutputError("Phản hồi AI phải là một đối tượng JSON.")
+
+
+def _request_json(
+    instruction: str,
+    data: dict,
+    provider_id: str | None = None,
+    list_key: str | None = None,
+) -> dict:
     provider = resolve_provider(provider_id)
     serialized = json.dumps(data, ensure_ascii=False)
     if len(serialized.encode("utf-8")) > 160_000:
@@ -146,10 +165,7 @@ def _request_json(instruction: str, data: dict, provider_id: str | None = None) 
         content = choice["message"]["content"]
         if not isinstance(content, str) or len(content) > 500_000:
             raise AIOutputError("Phản hồi AI không hợp lệ hoặc vượt giới hạn.")
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            raise AIOutputError("Phản hồi AI phải là một đối tượng JSON.")
-        return parsed
+        return _decode_json_object(content, list_key)
     except httpx.HTTPStatusError as error:
         # Do not expose provider response bodies, API keys, or project source in error messages.
         raise AIUnavailable(f"Dịch vụ AI trả HTTP {error.response.status_code}. Kiểm tra model, khóa và hạn mức dịch vụ.") from error
@@ -196,7 +212,12 @@ def analyze_files_with_ai(contents: dict[str, str], provider_id: str | None = No
     """Gọi cùng prompt/schema mà luồng quét thật sử dụng, không ghi database."""
     try:
         return ScanOutput.model_validate(
-            _request_json(AI_SCAN_INSTRUCTION, {"files": contents}, provider_id)
+            _request_json(
+                AI_SCAN_INSTRUCTION,
+                {"files": contents},
+                provider_id,
+                list_key="issues",
+            )
         )
     except ValidationError as error:
         raise AIOutputError("Danh sách lỗi AI không đúng schema yêu cầu.") from error
@@ -324,6 +345,7 @@ def generate_tests(
         "services. Test code is a proposal and must not claim a passing result.",
         {"files": contents},
         provider_id,
+        list_key="tests",
     )
     tests = output.get("tests")
     if not isinstance(tests, list) or not 1 <= len(tests) <= 10:

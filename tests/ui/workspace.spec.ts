@@ -448,6 +448,7 @@ async function workspace(page: Page, role = "developer") {
   let deletedProjects: Array<typeof project & { deletedAt: string }> = [];
   let state = "PENDING";
   let uploaded = false;
+  let projectLoadCount = 0;
   const issue = () => ({
     id: "i1",
     filePath: "payment.py",
@@ -512,8 +513,10 @@ async function workspace(page: Page, role = "developer") {
     } else if (path === "/projects/p1/permanent" && method === "DELETE") {
       deletedProjects = [];
       result = {};
-    } else if (path === "/projects/p1") result = project;
-    else if (path.endsWith("/files/content"))
+    } else if (path === "/projects/p1") {
+      projectLoadCount += 1;
+      result = project;
+    } else if (path.endsWith("/files/content"))
       result = {
         path: "payment.py",
         content: "# Tiếng Việt\ndef charge(amount):\n    return amount / 0",
@@ -562,9 +565,13 @@ async function workspace(page: Page, role = "developer") {
           changedFileCount: 1,
         },
       ];
-    else if (path.endsWith("/accept")) state = "ACCEPTED";
-    else if (path.endsWith("/reject")) state = "REJECTED";
-    else if (path.endsWith("/apply")) {
+    else if (path.endsWith("/accept")) {
+      state = "ACCEPTED";
+      result = { issue: issue() };
+    } else if (path.endsWith("/reject")) {
+      state = "REJECTED";
+      result = { issue: issue() };
+    } else if (path.endsWith("/apply")) {
       state = "APPLIED";
       project.version = "v2";
     } else if (path.endsWith("/upload")) {
@@ -619,7 +626,11 @@ async function workspace(page: Page, role = "developer") {
     }
     await route.fulfill({ json: result });
   });
-  return { errors, uploaded: () => uploaded };
+  return {
+    errors,
+    uploaded: () => uploaded,
+    projectLoads: () => projectLoadCount,
+  };
 }
 
 test("quick demo login sends the correct account for each role", async ({
@@ -825,12 +836,19 @@ test("projects first, separate steps, review and apply, filtering and logout", a
     "def charge(amount):",
   );
   await page.getByRole("tab", { name: "Bản sửa" }).click();
+  const loadsBeforeReview = result.projectLoads();
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
   ).toBeVisible();
+  expect(result.projectLoads()).toBe(loadsBeforeReview);
+  await expect(
+    page.getByText("Đã chấp nhận đề xuất. Nhấn Áp dụng để thay đổi source.", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Bỏ duyệt", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Duyệt lại bản sửa", exact: true }),

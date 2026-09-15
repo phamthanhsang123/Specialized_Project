@@ -522,11 +522,16 @@ export default function Home() {
       });
     return () => controller.abort();
   }, [selectedIssueKey, projectId, proposalReload]);
-  async function performAction(
+  async function performAction<Result>(
     label: string,
-    action: (id: string, signal: AbortSignal) => Promise<unknown>,
+    action: (id: string, signal: AbortSignal) => Promise<Result>,
     success: string,
     step = "",
+    options: {
+      refresh?: boolean;
+      showNotice?: boolean;
+      onSuccess?: (result: Result) => void;
+    } = {},
   ) {
     const id = currentProject.current;
     if (!id || actionInProgress.current || stale || uncertain) return false;
@@ -539,14 +544,19 @@ export default function Home() {
     setRecovery("");
     setProcessingStep(step);
     try {
-      await action(id, controller.signal);
+      const result = await action(id, controller.signal);
       if (currentProject.current === id) {
-        const fresh = await refreshProject(id, { silent: true });
-        if (fresh) setNotice(success);
-        else
-          setRecovery(
-            "Thao tác đã được lưu, nhưng chưa tải được dữ liệu mới. Hãy tải lại dữ liệu; không gửi lại thao tác.",
-          );
+        if (options.refresh === false) {
+          options.onSuccess?.(result);
+          if (options.showNotice !== false) setNotice(success);
+        } else {
+          const fresh = await refreshProject(id, { silent: true });
+          if (fresh && options.showNotice !== false) setNotice(success);
+          else if (!fresh)
+            setRecovery(
+              "Thao tác đã được lưu, nhưng chưa tải được dữ liệu mới. Hãy tải lại dữ liệu; không gửi lại thao tác.",
+            );
+        }
       }
       return true;
     } catch (failure) {
@@ -974,14 +984,39 @@ export default function Home() {
     const succeeded = await performAction(
       "Đang lưu quyết định…",
       (id, signal) =>
-        apiFetch(`/issues/${encodeURIComponent(selectedIssue.id)}/${action}`, {
-          signal,
-          method: "POST",
-        }),
+        apiFetch<{ issue: Issue }>(
+          `/issues/${encodeURIComponent(selectedIssue.id)}/${action}`,
+          {
+            signal,
+            method: "POST",
+          },
+        ),
       action === "accept"
         ? "Đã chấp nhận đề xuất. Nhấn Áp dụng để thay đổi source."
         : "Đã từ chối đề xuất.",
       "analysis",
+      {
+        refresh: false,
+        showNotice: false,
+        onSuccess: ({ issue }) => {
+          setData((current) => {
+            if (!current) return current;
+            const nextIssues = current.issues.map((item) =>
+              item.id === issue.id ? issue : item,
+            );
+            return {
+              ...current,
+              project: {
+                ...current.project,
+                pendingIssueCount: nextIssues.filter(
+                  (item) => item.status === "PENDING",
+                ).length,
+              },
+              issues: nextIssues,
+            };
+          });
+        },
+      },
     );
     if (action !== "accept") return;
     if (!succeeded) {
@@ -1016,10 +1051,12 @@ export default function Home() {
     if (useAI) {
       setAiScanPhase("success");
       await wait(AI_SCAN_SUCCESS_MS);
+      setNotice("");
       setActiveNav("analysis");
       setAiScanPhase("idle");
       return;
     }
+    setNotice("");
     setActiveNav("analysis");
   }
   async function saveTest(event: FormEvent<HTMLFormElement>) {

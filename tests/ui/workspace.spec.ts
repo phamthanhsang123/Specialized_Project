@@ -831,6 +831,16 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(
     page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Bỏ duyệt", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Duyệt lại bản sửa", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Duyệt lại bản sửa", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: /Áp dụng 1/ })).toBeEnabled();
   await page.getByRole("button", { name: /Áp dụng 1/ }).click();
   await expect(page.locator(".testing-workspace")).toBeVisible();

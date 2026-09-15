@@ -1259,8 +1259,8 @@
 .workspace-v2 .review-actions .accept-button {
   width: 166px;
 }
-.review-actions .action-placeholder {
-  visibility: hidden;
+.workspace-v2 .review-actions .reject-button {
+  width: 106px;
 }
 .accept-button.accept-success svg {
   animation: accept-check-in 0.22s ease-out;

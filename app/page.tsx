@@ -1938,90 +1938,69 @@ export default function Home() {
                                 <Empty>{t("Đang tải mã nguồn…")}</Empty>
                               )}
                             </div>
-                            {(selectedIssue.status === "PENDING" ||
-                              selectedIssue.status === "ACCEPTED") && (
+                            {["PENDING", "ACCEPTED", "REJECTED"].includes(
+                              selectedIssue.status,
+                            ) && (
                               <div className="review-actions">
-                                {acceptFeedback?.issueId === selectedIssue.id &&
-                                acceptFeedback.phase === "success" ? (
-                                  <>
-                                    <button
-                                      className="reject-button action-placeholder"
-                                      disabled
-                                      aria-hidden="true"
-                                      tabIndex={-1}
-                                    >
-                                      <Icon name="x" size={16} />
-                                      {t("Từ chối")}
-                                    </button>
-                                    <button
-                                      className="accept-button accept-success"
-                                      disabled
-                                    >
+                                <button
+                                  className="reject-button"
+                                  disabled={
+                                    disabled ||
+                                    selectedIssue.status === "REJECTED"
+                                  }
+                                  onClick={() => void reviewIssue("reject")}
+                                >
+                                  <Icon name="x" size={16} />
+                                  {selectedIssue.status === "ACCEPTED"
+                                    ? t("Bỏ duyệt")
+                                    : selectedIssue.status === "REJECTED"
+                                      ? t("Đã từ chối")
+                                      : t("Từ chối")}
+                                </button>
+                                <button
+                                  className={`accept-button${selectedIssue.status === "ACCEPTED" || (acceptFeedback?.issueId === selectedIssue.id && acceptFeedback.phase === "success") ? " accept-success" : ""}`}
+                                  title={
+                                    !selectedProposal
+                                      ? t(
+                                          "Cần có đề xuất sửa trước khi chấp nhận.",
+                                        )
+                                      : t("Chấp nhận chưa thay đổi mã nguồn.")
+                                  }
+                                  disabled={
+                                    disabled ||
+                                    selectedIssue.status === "ACCEPTED" ||
+                                    !selectedProposal ||
+                                    proposalLoading
+                                  }
+                                  onClick={() => void reviewIssue("accept")}
+                                >
+                                  {acceptFeedback?.issueId ===
+                                    selectedIssue.id &&
+                                  acceptFeedback.phase === "loading" ? (
+                                    <>
+                                      <span
+                                        className="button-spinner"
+                                        aria-hidden="true"
+                                      />
+                                      {t("Đang chấp nhận...")}
+                                    </>
+                                  ) : selectedIssue.status === "ACCEPTED" ||
+                                    (acceptFeedback?.issueId ===
+                                      selectedIssue.id &&
+                                      acceptFeedback.phase === "success") ? (
+                                    <>
                                       <Icon name="check" size={16} />
                                       {t("Đã chấp nhận")}
-                                    </button>
-                                  </>
-                                ) : selectedIssue.status === "PENDING" ? (
-                                  <>
-                                    <button
-                                      className="reject-button"
-                                      disabled={disabled}
-                                      onClick={() => void reviewIssue("reject")}
-                                    >
-                                      <Icon name="x" size={16} />
-                                      {t("Từ chối")}
-                                    </button>
-                                    <button
-                                      className="accept-button"
-                                      title={
-                                        !selectedProposal
-                                          ? t(
-                                              "Cần có đề xuất sửa trước khi chấp nhận.",
-                                            )
-                                          : t(
-                                              "Chấp nhận chưa thay đổi mã nguồn.",
-                                            )
-                                      }
-                                      disabled={
-                                        disabled ||
-                                        !selectedProposal ||
-                                        proposalLoading
-                                      }
-                                      onClick={() => void reviewIssue("accept")}
-                                    >
-                                      {acceptFeedback?.issueId ===
-                                        selectedIssue.id &&
-                                      acceptFeedback.phase === "loading" ? (
-                                        <>
-                                          <span
-                                            className="button-spinner"
-                                            aria-hidden="true"
-                                          />
-                                          {t("Đang chấp nhận...")}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Icon name="check" size={16} />
-                                          {t("Chấp nhận bản sửa")}
-                                        </>
-                                      )}
-                                    </button>
-                                  </>
-                                ) : null}
-                                {selectedIssue.status === "ACCEPTED" &&
-                                  !(
-                                    acceptFeedback?.issueId ===
-                                      selectedIssue.id &&
-                                    acceptFeedback.phase === "success"
-                                  ) && (
-                                    <button
-                                      className="reject-button"
-                                      disabled={disabled}
-                                      onClick={() => void reviewIssue("reject")}
-                                    >
-                                      {t("Đổi sang từ chối")}
-                                    </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon name="check" size={16} />
+                                      {selectedIssue.status === "REJECTED"
+                                        ? t("Duyệt lại bản sửa")
+                                        : t("Chấp nhận bản sửa")}
+                                    </>
                                   )}
+                                </button>
                               </div>
                             )}
                           </>

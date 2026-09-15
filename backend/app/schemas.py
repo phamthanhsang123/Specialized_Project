@@ -82,6 +82,27 @@ class TestRunOut(BaseModel):
     output: str | None = None
 
 
+class PreviewComparisonInput(BaseModel):
+    runtime: Literal["python", "javascript", "typescript"] = "javascript"
+    installCommand: str = Field(default="npm install", max_length=1000)
+    startCommand: str = Field(min_length=1, max_length=1000)
+    port: int = Field(default=3000, ge=1024, le=65535)
+
+
+class PreviewTargetOut(BaseModel):
+    label: Literal["before", "after"]
+    version: str
+    url: str
+
+
+class PreviewComparisonOut(BaseModel):
+    sessionId: str
+    provider: str
+    expiresAt: datetime
+    before: PreviewTargetOut | None = None
+    after: PreviewTargetOut
+
+
 class VersionOut(BaseModel):
     id: str
     version: str

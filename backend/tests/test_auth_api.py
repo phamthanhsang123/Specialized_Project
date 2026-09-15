@@ -352,6 +352,39 @@ def test_upload_rejects_empty_request_and_aggregate_raw_size(auth_api):
     assert client.get("/api/projects/alice-project", headers=headers).json()["version"] == "v1"
 
 
+def test_preview_comparison_requires_owner_and_server_key(auth_api):
+    client, _, _ = auth_api
+    _, alice_headers = authenticate(client)
+    _, bob_headers = authenticate(client, "bob@example.com")
+    payload = {
+        "runtime": "javascript",
+        "installCommand": "npm install",
+        "startCommand": "npm run dev -- --host 0.0.0.0",
+        "port": 3000,
+    }
+    uploaded = client.post(
+        "/api/projects/alice-project/upload",
+        headers=alice_headers,
+        files={"file": ("app.py", b"print('preview')\n", "text/x-python")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+
+    hidden = client.post(
+        "/api/projects/alice-project/preview-comparisons",
+        headers=bob_headers,
+        json=payload,
+    )
+    assert hidden.status_code == 404
+
+    unavailable = client.post(
+        "/api/projects/alice-project/preview-comparisons",
+        headers=alice_headers,
+        json=payload,
+    )
+    assert unavailable.status_code == 503, unavailable.text
+    assert "DAYTONA_API_KEY" in unavailable.json()["detail"]
+
+
 def test_upload_rejects_zip_bomb_and_too_many_python_files_atomically(auth_api):
     client, _, _ = auth_api
     _, headers = authenticate(client)

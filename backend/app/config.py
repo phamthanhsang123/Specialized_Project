@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     sandbox_timeout_seconds: int = Field(default=30, ge=1, le=120)
     sandbox_memory: str = "256m"
     sandbox_cpus: float = Field(default=0.5, gt=0, le=4)
+    daytona_api_key: str = ""
+    daytona_api_url: str = "https://app.daytona.io/api"
+    daytona_target: str = ""
+    preview_ttl_minutes: int = Field(default=30, ge=5, le=120)
+    preview_create_timeout_seconds: int = Field(default=90, ge=30, le=300)
+    preview_command_timeout_seconds: int = Field(default=300, ge=30, le=900)
+    preview_start_timeout_seconds: int = Field(default=90, ge=10, le=300)
+    preview_max_files: int = Field(default=500, ge=1, le=1000)
+    preview_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024)
     ai_api_key: str = ""
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = ""

@@ -93,6 +93,19 @@ export interface TestCase {
   code: string;
   createdAt?: string;
 }
+export type PreviewRuntime = "python" | "javascript" | "typescript";
+export interface PreviewTarget {
+  label: "before" | "after";
+  version: string;
+  url: string;
+}
+export interface PreviewComparison {
+  sessionId: string;
+  provider: string;
+  expiresAt: string;
+  before: PreviewTarget | null;
+  after: PreviewTarget;
+}
 export interface Capabilities {
   aiConfigured: boolean;
   analysisModes: string[];
@@ -105,6 +118,9 @@ export interface Capabilities {
   }[];
   defaultAiProvider: string | null;
   sandboxImage: string;
+  previewConfigured: boolean;
+  previewProvider: string;
+  previewTtlMinutes: number;
 }
 export interface AdminUser extends User {
   createdAt: string;

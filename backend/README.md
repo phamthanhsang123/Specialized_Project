@@ -36,6 +36,8 @@ POST /api/projects/{id}/test
 GET  /api/projects/{id}/test-runs
 GET  /api/projects/{id}/test-results          alias test-runs
 POST /api/projects/{id}/test-runs/{runId}/explain?provider=gemini
+POST /api/projects/{id}/preview-comparisons   tạo bản xem trước phiên bản trước/sau
+DELETE /api/projects/{id}/preview-comparisons/{sessionId}
 GET  /api/projects/{id}/versions
 POST /api/projects/{id}/rollback?version=v2
 GET  /api/admin/overview                     chỉ Admin

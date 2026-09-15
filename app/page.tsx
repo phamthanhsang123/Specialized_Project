@@ -22,6 +22,8 @@ import type {
   Issue,
   IssueStatus,
   Project,
+  PreviewComparison,
+  PreviewRuntime,
   Severity,
   SourceFile,
   TestCase,
@@ -131,6 +133,41 @@ function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+function PreviewFrame({
+  title,
+  target,
+  emptyText,
+}: {
+  title: string;
+  target: PreviewComparison["before"];
+  emptyText?: string;
+}) {
+  return (
+    <article className="preview-frame-card">
+      <div className="preview-frame-head">
+        <div>
+          <b>{title}</b>
+          {target && <small>{target.version}</small>}
+        </div>
+        {target && (
+          <a href={target.url} target="_blank" rel="noreferrer">
+            {t("Mở toàn màn hình")}
+          </a>
+        )}
+      </div>
+      {target ? (
+        <iframe
+          title={`${title} ${target.version}`}
+          src={target.url}
+          sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="preview-frame-empty">{emptyText}</div>
+      )}
+    </article>
+  );
+}
 function versionReasonLabel(reason?: string) {
   if (reason?.startsWith("ROLLBACK:")) {
     return t("Khôi phục từ {{version}}", {
@@ -184,9 +221,9 @@ export default function Home() {
     phase: "loading" | "success";
   } | null>(null);
   const [reviewInProgress, setReviewInProgress] = useState(false);
-  const [testSection, setTestSection] = useState<"results" | "cases">(
-    "results",
-  );
+  const [testSection, setTestSection] = useState<
+    "results" | "cases" | "preview"
+  >("results");
   const [filter, setFilter] = useState<Severity | "ALL">("ALL");
   const [showCreate, setShowCreate] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -209,6 +246,18 @@ export default function Home() {
     name: "test_project.py",
     code: "",
   });
+  const [previewRuntime, setPreviewRuntime] =
+    useState<PreviewRuntime>("javascript");
+  const [previewInstallCommand, setPreviewInstallCommand] =
+    useState("npm install");
+  const [previewStartCommand, setPreviewStartCommand] = useState(
+    "npm run dev -- --host 0.0.0.0",
+  );
+  const [previewPort, setPreviewPort] = useState(3000);
+  const [previewComparison, setPreviewComparison] =
+    useState<PreviewComparison | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const testDirty =
     testName !== testBaseline.name || testCode !== testBaseline.code;
   const dirtyRef = useRef(false);
@@ -321,6 +370,8 @@ export default function Home() {
       setTestCode("");
       setTestEditorId("");
       setTestBaseline({ name: "test_project.py", code: "" });
+      setPreviewComparison(null);
+      setPreviewError("");
       setShowUpload(null);
       setRollbackTarget(null);
       setVersionDiff(null);
@@ -970,6 +1021,7 @@ export default function Home() {
     );
     if (success) {
       setShowUpload(null);
+      setPreviewComparison(null);
       setActiveNav("source");
     }
   }
@@ -1080,6 +1132,65 @@ export default function Home() {
       setTestEditorId(saved.name);
       setTestName(saved.name);
       setTestBaseline(saved);
+    }
+  }
+  function selectPreviewRuntime(runtime: PreviewRuntime) {
+    setPreviewRuntime(runtime);
+    if (runtime === "python") {
+      setPreviewInstallCommand("pip install -r requirements.txt");
+      setPreviewStartCommand("uvicorn app.main:app --host 0.0.0.0 --port 8000");
+      setPreviewPort(8000);
+      return;
+    }
+    setPreviewInstallCommand("npm install");
+    setPreviewStartCommand("npm run dev -- --host 0.0.0.0");
+    setPreviewPort(3000);
+  }
+  async function createPreview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!projectId || previewBusy) return;
+    const requestedProject = projectId;
+    setPreviewBusy(true);
+    setPreviewError("");
+    try {
+      const result = await apiFetch<PreviewComparison>(
+        `/projects/${encodeURIComponent(requestedProject)}/preview-comparisons`,
+        {
+          method: "POST",
+          timeoutMs: 600000,
+          body: JSON.stringify({
+            runtime: previewRuntime,
+            installCommand: previewInstallCommand,
+            startCommand: previewStartCommand,
+            port: previewPort,
+          }),
+        },
+      );
+      if (currentProject.current === requestedProject)
+        setPreviewComparison(result);
+    } catch (failure) {
+      if (!isAborted(failure)) setPreviewError(errorMessage(failure));
+    } finally {
+      if (currentProject.current === requestedProject) setPreviewBusy(false);
+    }
+  }
+  async function stopPreview() {
+    if (!projectId || !previewComparison || previewBusy) return;
+    const requestedProject = projectId;
+    const sessionId = previewComparison.sessionId;
+    setPreviewBusy(true);
+    setPreviewError("");
+    try {
+      await apiFetch(
+        `/projects/${encodeURIComponent(requestedProject)}/preview-comparisons/${encodeURIComponent(sessionId)}`,
+        { method: "DELETE", timeoutMs: 90000 },
+      );
+      if (currentProject.current === requestedProject)
+        setPreviewComparison(null);
+    } catch (failure) {
+      if (!isAborted(failure)) setPreviewError(errorMessage(failure));
+    } finally {
+      if (currentProject.current === requestedProject) setPreviewBusy(false);
     }
   }
   async function viewVersion(version: CodeVersion) {
@@ -2074,6 +2185,7 @@ export default function Home() {
                                 "analysis",
                               ).then((ok) => {
                                 if (ok) {
+                                  setPreviewComparison(null);
                                   setTestSection("results");
                                   setActiveNav("testing");
                                 }
@@ -2125,6 +2237,7 @@ export default function Home() {
                         aria-label={t("Nội dung kiểm thử")}
                       >
                         <button
+                          type="button"
                           role="tab"
                           aria-selected={testSection === "results"}
                           onClick={() => setTestSection("results")}
@@ -2133,12 +2246,22 @@ export default function Home() {
                           <b>{data.tests.length}</b>
                         </button>
                         <button
+                          type="button"
                           role="tab"
                           aria-selected={testSection === "cases"}
                           onClick={() => setTestSection("cases")}
                         >
                           {t("Quản lý test case")}
                           <b>{data.testCases.length}</b>
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={testSection === "preview"}
+                          onClick={() => setTestSection("preview")}
+                        >
+                          {t("Xem trước giao diện")}
+                          <b>{previewComparison ? 1 : 0}</b>
                         </button>
                       </div>
                       {testSection === "results" && (
@@ -2295,6 +2418,149 @@ export default function Home() {
                             {t("Lưu test case")}
                           </button>
                         </form>
+                      )}
+                      {testSection === "preview" && (
+                        <div className="preview-section">
+                          <div className="preview-intro">
+                            <div>
+                              <h3>{t("So sánh giao diện trước và sau")}</h3>
+                              <p>
+                                {t(
+                                  "Chạy hai phiên bản trong sandbox riêng để kiểm tra trực tiếp bản sửa trên trình duyệt.",
+                                )}
+                              </p>
+                            </div>
+                            {previewComparison && (
+                              <button
+                                type="button"
+                                className="outline-button danger-outline"
+                                disabled={previewBusy}
+                                onClick={() => void stopPreview()}
+                              >
+                                {t("Dừng bản xem trước")}
+                              </button>
+                            )}
+                          </div>
+                          {!capabilities?.previewConfigured && (
+                            <div className="preview-config-note" role="status">
+                              <Icon name="info" size={18} />
+                              <div>
+                                <b>{t("Chưa kết nối Daytona")}</b>
+                                <p>
+                                  {t(
+                                    "Thêm DAYTONA_API_KEY vào backend/.env và khởi động lại backend. Khóa chỉ nằm ở máy chủ.",
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <form
+                            className="preview-settings"
+                            onSubmit={createPreview}
+                          >
+                            <label>
+                              {t("Môi trường chạy")}
+                              <select
+                                value={previewRuntime}
+                                disabled={previewBusy}
+                                onChange={(event) =>
+                                  selectPreviewRuntime(
+                                    event.target.value as PreviewRuntime,
+                                  )
+                                }
+                              >
+                                <option value="javascript">
+                                  JavaScript · Node.js
+                                </option>
+                                <option value="typescript">
+                                  TypeScript · Node.js
+                                </option>
+                                <option value="python">Python</option>
+                              </select>
+                            </label>
+                            <label>
+                              {t("Cổng giao diện")}
+                              <input
+                                type="number"
+                                min={1024}
+                                max={65535}
+                                required
+                                value={previewPort}
+                                disabled={previewBusy}
+                                onChange={(event) =>
+                                  setPreviewPort(Number(event.target.value))
+                                }
+                              />
+                            </label>
+                            <label className="preview-command-field">
+                              {t("Lệnh cài đặt")}
+                              <input
+                                value={previewInstallCommand}
+                                disabled={previewBusy}
+                                onChange={(event) =>
+                                  setPreviewInstallCommand(event.target.value)
+                                }
+                                placeholder="npm install"
+                              />
+                            </label>
+                            <label className="preview-command-field">
+                              {t("Lệnh chạy giao diện")}
+                              <input
+                                required
+                                value={previewStartCommand}
+                                disabled={previewBusy}
+                                onChange={(event) =>
+                                  setPreviewStartCommand(event.target.value)
+                                }
+                                placeholder="npm run dev -- --host 0.0.0.0"
+                              />
+                            </label>
+                            <button
+                              type="submit"
+                              className="run-button preview-run-button"
+                              disabled={
+                                previewBusy ||
+                                !capabilities?.previewConfigured ||
+                                !previewStartCommand.trim()
+                              }
+                            >
+                              {previewBusy ? (
+                                <span className="button-spinner" />
+                              ) : (
+                                <Icon name="play" size={14} />
+                              )}
+                              {previewBusy
+                                ? t("Đang khởi tạo sandbox…")
+                                : t("Chạy xem trước/sau")}
+                            </button>
+                          </form>
+                          <p className="form-help preview-help">
+                            {t(
+                              "Chỉ khi bấm chạy, mã nguồn hai phiên bản mới được gửi tới Daytona. Mỗi bản xem trước tự hết hạn sau {{count}} phút.",
+                              { count: capabilities?.previewTtlMinutes ?? 30 },
+                            )}
+                          </p>
+                          {previewError && (
+                            <div className="preview-error" role="alert">
+                              {previewError}
+                            </div>
+                          )}
+                          {previewComparison && (
+                            <div className="preview-comparison">
+                              <PreviewFrame
+                                title={t("Trước khi sửa")}
+                                target={previewComparison.before}
+                                emptyText={t(
+                                  "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.",
+                                )}
+                              />
+                              <PreviewFrame
+                                title={t("Sau khi sửa")}
+                                target={previewComparison.after}
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </article>
                   </section>

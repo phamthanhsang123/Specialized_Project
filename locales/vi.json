@@ -481,5 +481,22 @@
   "Đã đổi tên dự án thành {{v0}}.": "Đã đổi tên dự án thành {{v0}}.",
   "Không thể đổi tên dự án": "Không thể đổi tên dự án",
   "Chưa xác định tên dự án đã được cập nhật hay chưa. Hãy đồng bộ lại danh sách trước khi thử lại.": "Chưa xác định tên dự án đã được cập nhật hay chưa. Hãy đồng bộ lại danh sách trước khi thử lại.",
-  "Tên dự án trước đó": "Tên dự án trước đó"
+  "Tên dự án trước đó": "Tên dự án trước đó",
+  "Mở toàn màn hình": "Mở toàn màn hình",
+  "Xem trước giao diện": "Xem trước giao diện",
+  "So sánh giao diện trước và sau": "So sánh giao diện trước và sau",
+  "Chạy hai phiên bản trong sandbox riêng để kiểm tra trực tiếp bản sửa trên trình duyệt.": "Chạy hai phiên bản trong môi trường cách ly riêng để kiểm tra trực tiếp bản sửa trên trình duyệt.",
+  "Dừng bản xem trước": "Dừng bản xem trước",
+  "Chưa kết nối Daytona": "Chưa kết nối Daytona",
+  "Thêm DAYTONA_API_KEY vào backend/.env và khởi động lại backend. Khóa chỉ nằm ở máy chủ.": "Thêm DAYTONA_API_KEY vào backend/.env và khởi động lại máy chủ. Khóa chỉ nằm ở máy chủ.",
+  "Môi trường chạy": "Môi trường chạy",
+  "Cổng giao diện": "Cổng giao diện",
+  "Lệnh cài đặt": "Lệnh cài đặt",
+  "Lệnh chạy giao diện": "Lệnh chạy giao diện",
+  "Đang khởi tạo sandbox…": "Đang khởi tạo môi trường cách ly…",
+  "Chạy xem trước/sau": "Chạy xem trước/sau",
+  "Chỉ khi bấm chạy, mã nguồn hai phiên bản mới được gửi tới Daytona. Mỗi bản xem trước tự hết hạn sau {{count}} phút.": "Chỉ khi bấm chạy, mã nguồn hai phiên bản mới được gửi tới Daytona. Mỗi bản xem trước tự hết hạn sau {{count}} phút.",
+  "Trước khi sửa": "Trước khi sửa",
+  "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.": "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.",
+  "Sau khi sửa": "Sau khi sửa"
 }

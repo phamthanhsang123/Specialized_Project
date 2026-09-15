@@ -486,5 +486,22 @@
   "Đã đổi tên dự án thành {{v0}}.": "Renamed project to {{v0}}.",
   "Không thể đổi tên dự án": "Could not rename project",
   "Chưa xác định tên dự án đã được cập nhật hay chưa. Hãy đồng bộ lại danh sách trước khi thử lại.": "It is unclear whether the project name was updated. Refresh the list before trying again.",
-  "Tên dự án trước đó": "Previous project name"
+  "Tên dự án trước đó": "Previous project name",
+  "Mở toàn màn hình": "Open full screen",
+  "Xem trước giao diện": "Interface preview",
+  "So sánh giao diện trước và sau": "Compare the interface before and after",
+  "Chạy hai phiên bản trong sandbox riêng để kiểm tra trực tiếp bản sửa trên trình duyệt.": "Run both versions in isolated sandboxes to inspect the fix in a browser.",
+  "Dừng bản xem trước": "Stop previews",
+  "Chưa kết nối Daytona": "Daytona is not connected",
+  "Thêm DAYTONA_API_KEY vào backend/.env và khởi động lại backend. Khóa chỉ nằm ở máy chủ.": "Add DAYTONA_API_KEY to backend/.env and restart the backend. The key stays on the server.",
+  "Môi trường chạy": "Runtime",
+  "Cổng giao diện": "Preview port",
+  "Lệnh cài đặt": "Install command",
+  "Lệnh chạy giao diện": "Preview command",
+  "Đang khởi tạo sandbox…": "Starting sandboxes…",
+  "Chạy xem trước/sau": "Run before/after previews",
+  "Chỉ khi bấm chạy, mã nguồn hai phiên bản mới được gửi tới Daytona. Mỗi bản xem trước tự hết hạn sau {{count}} phút.": "The two source versions are sent to Daytona only after you run them. Each preview expires after {{count}} minutes.",
+  "Trước khi sửa": "Before the fix",
+  "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.": "There is no earlier version to compare. Apply at least one fix first.",
+  "Sau khi sửa": "After the fix"
 }

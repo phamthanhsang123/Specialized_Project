@@ -57,7 +57,7 @@ export async function apiFetch<T>(
   options: ApiOptions = {},
 ): Promise<T> {
   const {
-    timeoutMs = /\/(ai-scan|ai-proposal|generate|explain|test)(?:\?|$)/.test(
+    timeoutMs = /\/(ai-scan|ai-proposal|generate|explain|test|preview-comparisons)(?:\?|$)/.test(
       path,
     )
       ? 180000

@@ -58,14 +58,14 @@ test("unsaved test is protected on selection, project switch, and logout", async
   await expect(page.getByText("Chưa lưu", { exact: true })).toHaveCount(0);
 });
 
-test("saved action plus failed refresh locks edits without resubmitting", async ({
+test("applied action plus failed refresh locks edits without resubmitting", async ({
   page,
 }) => {
   await workspace(page);
-  let accepted = 0,
+  let applied = 0,
     failRefresh = false;
-  await page.route("**/api/issues/i1/accept", async (route) => {
-    accepted++;
+  await page.route("**/api/projects/p1/apply", async (route) => {
+    applied++;
     failRefresh = true;
     await route.fallback();
   });
@@ -86,24 +86,20 @@ test("saved action plus failed refresh locks edits without resubmitting", async 
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();
+  await page.getByRole("button", { name: /Áp dụng 1/ }).click();
   await expect(page.locator(".recovery-banner")).toContainText(
     "Thao tác đã được lưu",
   );
   await expect(
-    page.getByRole("button", { name: "Chấp nhận bản sửa", exact: true }),
-  ).toBeDisabled();
-  expect(accepted).toBe(1);
+    page.getByRole("button", { name: "Tải lại dữ liệu", exact: true }),
+  ).toBeVisible();
+  expect(applied).toBe(1);
   failRefresh = false;
   await page
     .getByRole("button", { name: "Tải lại dữ liệu", exact: true })
     .click();
-  await expect(page.getByRole("button", { name: /Áp dụng 1/ })).toBeEnabled();
-  expect(accepted).toBe(1);
-  await page.getByRole("button", { name: /Áp dụng 1/ }).click();
-  const heading = page.getByRole("heading", { name: "Kiểm thử", exact: true });
-  await expect(heading).toBeFocused();
-  await expect(heading).toBeInViewport();
-  expect(await page.locator(".content").evaluate((el) => el.scrollTop)).toBe(0);
+  expect(applied).toBe(1);
+  await expect(page.locator(".recovery-banner")).toHaveCount(0);
 });
 
 test("stop waiting and timeout never automatically repeat mutations", async ({
@@ -332,6 +328,89 @@ test("test comparison and save test use backend data; admin and login fit mobile
   expect(result.errors).toEqual([]);
 });
 
+test("web preview sends runtime settings and shows before and after", async ({
+  page,
+}) => {
+  const result = await workspace(page);
+  await page.route("**/api/capabilities", (route) =>
+    route.fulfill({
+      json: {
+        aiConfigured: false,
+        analysisModes: ["static"],
+        aiProviders: [],
+        defaultAiProvider: null,
+        sandboxImage: "sentinel-test-runner:local",
+        previewConfigured: true,
+        previewProvider: "Daytona",
+        previewTtlMinutes: 30,
+      },
+    }),
+  );
+  await page.route("https://preview.example/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<main><h1>Ứng dụng đang chạy</h1></main>",
+    }),
+  );
+  let payload: Record<string, unknown> | undefined;
+  let stopped = false;
+  await page.route("**/api/projects/p1/preview-comparisons", async (route) => {
+    payload = route.request().postDataJSON();
+    await route.fulfill({
+      json: {
+        sessionId: "preview-1",
+        provider: "Daytona",
+        expiresAt: "2026-09-05T08:30:00Z",
+        before: {
+          label: "before",
+          version: "v1",
+          url: "https://preview.example/before",
+        },
+        after: {
+          label: "after",
+          version: "v2",
+          url: "https://preview.example/after",
+        },
+      },
+    });
+  });
+  await page.route(
+    "**/api/projects/p1/preview-comparisons/preview-1",
+    async (route) => {
+      stopped = true;
+      await route.fulfill({ status: 204, body: "" });
+    },
+  );
+
+  await page.goto("/");
+  await page.locator(".project-card").click();
+  await page
+    .locator(".workflow-tabs")
+    .getByRole("button", { name: /Kiểm thử/ })
+    .click();
+  await page.getByRole("tab", { name: /Xem trước giao diện/ }).click();
+  await page.getByRole("button", { name: "Chạy xem trước/sau" }).click();
+
+  await expect(page.locator(".preview-frame-card iframe")).toHaveCount(2);
+  expect(payload).toEqual({
+    runtime: "javascript",
+    installCommand: "npm install",
+    startCommand: "npm run dev -- --host 0.0.0.0",
+    port: 3000,
+  });
+  await expect(
+    page.getByRole("link", { name: "Mở toàn màn hình" }),
+  ).toHaveCount(2);
+  await page.screenshot({
+    path: "test-results/preview-comparison.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Dừng bản xem trước" }).click();
+  await expect(page.locator(".preview-frame-card")).toHaveCount(0);
+  expect(stopped).toBe(true);
+  expect(result.errors).toEqual([]);
+});
+
 test("admin and login remain readable at mobile width", async ({ page }) => {
   await workspace(page, "admin");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -491,6 +570,10 @@ async function workspace(page: Page, role = "developer") {
           },
         ],
         defaultAiProvider: null,
+        sandboxImage: "sentinel-test-runner:local",
+        previewConfigured: false,
+        previewProvider: "Daytona",
+        previewTtlMinutes: 30,
       };
     else if (path === "/projects" && method === "GET") result = projects;
     else if (path === "/projects/deleted" && method === "GET")

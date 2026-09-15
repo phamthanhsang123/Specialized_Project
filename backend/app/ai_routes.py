@@ -6,6 +6,7 @@ from .config import get_settings
 from .database import get_db
 from .models import Issue, Project, TestResult, User
 from .services import ai
+from .services.preview import configured as preview_configured
 from .services.source import issue_to_out, proposal_to_out
 from .services.testing import TestingError
 
@@ -50,6 +51,9 @@ def capabilities() -> dict:
         "aiProviders": providers,
         "defaultAiProvider": default_provider,
         "sandboxImage": get_settings().sandbox_image,
+        "previewConfigured": preview_configured(),
+        "previewProvider": "Daytona",
+        "previewTtlMinutes": get_settings().preview_ttl_minutes,
     }
 
 

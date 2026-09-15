@@ -25,6 +25,8 @@ from .schemas import (
     ProjectCreate,
     ProjectOut,
     ProjectUpdate,
+    PreviewComparisonInput,
+    PreviewComparisonOut,
     ScanOut,
     TestRunOut,
     UploadOut,
@@ -48,6 +50,14 @@ from .services.source import (
     version_to_out,
 )
 from .services.testing import SandboxUnavailable, TestingError, list_test_cases, run_project_tests, save_test_case
+from .services.preview import (
+    PreviewError,
+    PreviewUnavailable,
+    cleanup_all as cleanup_previews,
+    create_comparison,
+    stop_comparison,
+    stop_project_previews,
+)
 from .upload_limit import UploadBodyLimitMiddleware
 
 
@@ -58,6 +68,7 @@ settings = get_settings()
 async def lifespan(_app: FastAPI):
     ensure_schema_and_seed()
     yield
+    cleanup_previews()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -285,6 +296,7 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         project.deleted_at = deleted_at
         project.updated_at = deleted_at
         db.commit()
+        stop_project_previews(project.id)
         return Response(status_code=204)
 
     @add(route_app.post, "/projects/{project_id}/restore", response_model=ProjectOut)
@@ -333,6 +345,7 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
             project_id=project.id,
             detail=json.dumps({"project_name": project.name}, ensure_ascii=False),
         )
+        stop_project_previews(project.id)
         db.delete(project)
         db.commit()
         return Response(status_code=204)
@@ -371,6 +384,7 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         db.commit()
+        stop_project_previews(project.id)
         for item in created:
             db.refresh(item)
         return UploadOut(projectId=project.id, files=[file_to_out(item) for item in created], version=project.current_version)
@@ -438,6 +452,8 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         db.commit()
+        if count:
+            stop_project_previews(project.id)
         return MessageOut(message=f"Applied {count} accepted fix proposals")
 
     @add(route_app.post, "/projects/{project_id}/test", response_model=TestRunOut)
@@ -451,6 +467,46 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         db.commit()
         db.refresh(run)
         return test_to_out(run)
+
+    @add(
+        route_app.post,
+        "/projects/{project_id}/preview-comparisons",
+        response_model=PreviewComparisonOut,
+    )
+    def create_preview_comparison(
+        payload: PreviewComparisonInput,
+        project: Project = Depends(authorized_project),
+        db: Session = Depends(get_db),
+    ) -> PreviewComparisonOut:
+        try:
+            result = create_comparison(
+                db,
+                project,
+                runtime=payload.runtime,
+                install_command=payload.installCommand,
+                start_command=payload.startCommand,
+                port=payload.port,
+            )
+        except PreviewUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        except PreviewError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return PreviewComparisonOut.model_validate(result)
+
+    @add(
+        route_app.delete,
+        "/projects/{project_id}/preview-comparisons/{session_id}",
+        status_code=204,
+    )
+    def stop_preview_comparison(
+        session_id: str,
+        project: Project = Depends(authorized_project),
+    ) -> Response:
+        try:
+            stop_comparison(project.id, session_id)
+        except PreviewError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return Response(status_code=204)
 
     @add(route_app.get, "/projects/{project_id}/test-runs", response_model=list[TestRunOut])
     @add(route_app.get, "/projects/{project_id}/test-results", response_model=list[TestRunOut])
@@ -473,13 +529,22 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
 
     @add(route_app.get, "/projects/{project_id}/versions", response_model=list[VersionOut])
     def list_versions(project: Project = Depends(authorized_project), db: Session = Depends(get_db)) -> list[VersionOut]:
-        versions = db.query(CodeVersion).filter(CodeVersion.project_id == project.id).order_by(CodeVersion.created_at.desc()).all()
+        versions = db.query(CodeVersion).filter(CodeVersion.project_id == project.id).all()
         chronological = sorted(versions, key=lambda item: (item.created_at, item.version))
         previous_by_id = {
             item.id: chronological[index - 1] if index else None
             for index, item in enumerate(chronological)
         }
-        return [version_to_out(version, previous_by_id[version.id]) for version in versions]
+        newest_first = sorted(
+            versions,
+            key=lambda item: (
+                int(item.version[1:]) if item.version.startswith("v") and item.version[1:].isdigit() else -1,
+                item.created_at,
+                item.id,
+            ),
+            reverse=True,
+        )
+        return [version_to_out(version, previous_by_id[version.id]) for version in newest_first]
 
     @add(route_app.get, "/projects/{project_id}/versions/{version}/diff")
     def version_diff(version: str, project: Project = Depends(authorized_project), db: Session = Depends(get_db)) -> dict:
@@ -518,6 +583,7 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         db.commit()
+        stop_project_previews(project.id)
         return version_to_out(target)
 
 

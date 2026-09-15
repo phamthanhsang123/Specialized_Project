@@ -41,7 +41,8 @@ Seed chỉ tạo tài khoản chưa tồn tại, không đặt lại mật khẩ
 4. Duyệt Accept/Reject, bấm Apply. Chỉ patch được chấp nhận, còn khớp source và hợp lệ cú pháp mới được áp dụng. Source thay đổi thì quét/duyệt lại.
 5. Thêm pytest hoặc sinh test AI khi đã cấu hình. Đọc/chỉnh test trước khi chạy.
 6. Chạy test trước/sau bản sửa; xem log thực tế. Rollback tạo một phiên bản mới chứa source được khôi phục.
-7. Có thể đổi tên, chuyển project vào thùng rác, khôi phục hoặc xóa vĩnh viễn project thuộc sở hữu của mình.
+7. Khi cấu hình Daytona, mở **Kiểm thử → Xem trước giao diện** để chạy phiên bản trước và sau trong hai sandbox riêng.
+8. Có thể đổi tên, chuyển project vào thùng rác, khôi phục hoặc xóa vĩnh viễn project thuộc sở hữu của mình.
 
 Bạn không cần nén lại source sau mỗi lần sửa. Bấm **Tải thư mục**, chọn thư mục project hiện tại rồi xác nhận; trình duyệt sẽ gửi các tệp `.py` và giữ đường dẫn thư mục con. Vì giới hạn bảo mật của trình duyệt, khi muốn đồng bộ thay đổi mới bạn cần chọn lại thư mục; mỗi lần tải sẽ thay source hiện tại và vẫn giữ phiên bản cũ để rollback.
 
@@ -60,6 +61,20 @@ Runner dùng pytest thật, tắt mạng, source/root filesystem chỉ đọc, u
 Thiếu Docker/image/test thì API báo lỗi, không tạo PASS giả. Image mặc định có standard library + pytest; project cần thư viện khác phải build image riêng và đặt `SANDBOX_IMAGE`. Sandbox này cần được đánh giá cách ly riêng trước khi dùng như dịch vụ công khai đa khách hàng.
 
 VERIFIED nghĩa là vượt qua bộ test đã chạy, không phải hết mọi lỗi. Toàn bộ test bị skip hoặc không thu thập được test không đủ để xác minh. Log ghi số test bị skip.
+
+## Xem trước giao diện bằng Daytona
+
+Tạo API key tại [Daytona Dashboard](https://app.daytona.io/dashboard/keys), thêm vào `backend/.env`, rồi khởi động lại backend:
+
+```dotenv
+DAYTONA_API_KEY=
+DAYTONA_API_URL=https://app.daytona.io/api
+PREVIEW_TTL_MINUTES=30
+```
+
+Tab **Kiểm thử → Xem trước giao diện** nhận runtime, lệnh cài đặt, lệnh chạy và cổng web. Backend tải snapshot phiên bản trước cùng source hiện tại vào hai Daytona sandbox độc lập, khởi động ứng dụng và trả URL ký tạm thời để hiển thị cạnh nhau. JavaScript, TypeScript và Python đều có preset; có thể sửa lệnh theo framework thực tế.
+
+Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem trước** xóa ngay hai sandbox. API key chỉ nằm ở backend; mã nguồn chỉ được gửi tới Daytona khi người dùng bấm chạy xem trước. Phiên bản hiện tại chỉ lưu tệp Python, nên hỗ trợ tải và phân tích JavaScript đầy đủ là bước mở rộng tiếp theo.
 
 ## AI tùy chọn
 

@@ -165,7 +165,9 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<
     IssueStatus | "ALL" | "RESOLVED"
   >("ALL");
-  const [reviewTab, setReviewTab] = useState("explanation");
+  const [reviewTab, setReviewTab] = useState<"explanation" | "diff" | "source">(
+    "explanation",
+  );
   const [testSection, setTestSection] = useState<"results" | "cases">(
     "results",
   );
@@ -1826,10 +1828,12 @@ export default function Home() {
                                 className="text-link"
                                 onClick={() => {
                                   setSelectedFile(selectedIssue.filePath);
-                                  navigate("source");
+                                  setReviewTab("source");
                                 }}
+                                role="tab"
+                                aria-selected={reviewTab === "source"}
                               >
-                                {t("Mã nguồn →")}
+                                {t("Mã nguồn")}
                               </button>
                             </div>
                             <div hidden={reviewTab !== "explanation"}>
@@ -1910,6 +1914,30 @@ export default function Home() {
                                       </button>
                                     )}
                                 </div>
+                              )}
+                            </div>
+                            <div hidden={reviewTab !== "source"}>
+                              {fileError ? (
+                                <Empty>{fileError}</Empty>
+                              ) : content &&
+                                content.path === selectedIssue.filePath ? (
+                                <pre className="code-view issue-source-view">
+                                  {content.content
+                                    .split("\n")
+                                    .map((line, index) => (
+                                      <div
+                                        className={`code-line${index + 1 >= selectedIssue.lineStart && index + 1 <= selectedIssue.lineEnd ? " flagged" : ""}`}
+                                        key={index}
+                                      >
+                                        <span>{index + 1}</span>
+                                        <code>
+                                          {highlightPython(line || " ")}
+                                        </code>
+                                      </div>
+                                    ))}
+                                </pre>
+                              ) : (
+                                <Empty>{t("Đang tải mã nguồn…")}</Empty>
                               )}
                             </div>
                             {(selectedIssue.status === "PENDING" ||

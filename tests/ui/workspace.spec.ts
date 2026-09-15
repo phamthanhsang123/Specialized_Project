@@ -814,6 +814,13 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   });
   await page.getByRole("tab", { name: "Bản sửa" }).click();
   await expect(page.locator(".diff")).toBeVisible();
+  await page.getByRole("tab", { name: "Mã nguồn", exact: true }).click();
+  await expect(page.locator(".review-workspace")).toBeVisible();
+  await expect(page.locator(".source-workspace")).toHaveCount(0);
+  await expect(page.locator(".issue-source-view")).toContainText(
+    "def charge(amount):",
+  );
+  await page.getByRole("tab", { name: "Bản sửa" }).click();
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();

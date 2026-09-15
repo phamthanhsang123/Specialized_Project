@@ -527,6 +527,7 @@ export default function Home() {
     options: {
       refresh?: boolean;
       showNotice?: boolean;
+      globalBusy?: boolean;
       onSuccess?: (result: Result) => void;
     } = {},
   ) {
@@ -535,7 +536,7 @@ export default function Home() {
     const controller = new AbortController();
     actionController.current = controller;
     actionInProgress.current = true;
-    setBusy(label);
+    if (options.globalBusy !== false) setBusy(label);
     setError("");
     setNotice("");
     setRecovery("");
@@ -573,7 +574,7 @@ export default function Home() {
       return false;
     } finally {
       actionInProgress.current = false;
-      setBusy("");
+      if (options.globalBusy !== false) setBusy("");
       setProcessingStep("");
       if (actionController.current === controller)
         actionController.current = null;
@@ -996,6 +997,7 @@ export default function Home() {
       {
         refresh: false,
         showNotice: false,
+        globalBusy: false,
         onSuccess: ({ issue }) => {
           setData((current) => {
             if (!current) return current;
@@ -1973,6 +1975,7 @@ export default function Home() {
                                   type="button"
                                   className="reject-button"
                                   disabled={
+                                    reviewInProgress ||
                                     disabled ||
                                     selectedIssue.status === "REJECTED"
                                   }
@@ -1996,6 +1999,7 @@ export default function Home() {
                                       : t("Chấp nhận chưa thay đổi mã nguồn.")
                                   }
                                   disabled={
+                                    reviewInProgress ||
                                     disabled ||
                                     selectedIssue.status === "ACCEPTED" ||
                                     !selectedProposal ||

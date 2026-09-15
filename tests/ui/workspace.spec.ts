@@ -863,6 +863,9 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   ).toBeVisible();
   await expect(page.locator(".toast")).toHaveCount(0);
   await expect(
+    page.locator('.workflow-step[aria-current="step"]'),
+  ).toBeEnabled();
+  await expect(
     page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
   ).toBeVisible();
   const panelHeightAfterReview = (

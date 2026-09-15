@@ -924,6 +924,37 @@
 .workflow-step[aria-current] .workflow-step-copy strong {
   color: #234fae;
 }
+.workflow-step[aria-current],
+.workflow-step.complete[aria-current],
+.workflow-step.processing[aria-current] {
+  border-color: #285bd4;
+  background: linear-gradient(135deg, #3f72e8, #2f5fce);
+  color: #fff;
+  box-shadow:
+    0 0 0 3px rgba(57, 103, 215, 0.16),
+    0 8px 20px rgba(38, 83, 185, 0.18);
+}
+.workflow-step[aria-current] .workflow-step-number,
+.workflow-step.complete[aria-current] .workflow-step-number {
+  background: #fff;
+  color: #2f62d6;
+}
+.workflow-step[aria-current] .workflow-step-copy strong,
+.workflow-step[aria-current] .workflow-step-copy small {
+  color: #fff;
+}
+.workflow-step.next-ready:not([aria-current]) {
+  border-color: #91ade8;
+  background: #f1f5ff;
+  box-shadow: 0 0 0 2px rgba(80, 117, 207, 0.08);
+}
+.workflow-step.next-ready:not([aria-current]) .workflow-step-number {
+  background: #dfe9ff;
+  color: #315fc8;
+}
+.workflow-step.next-ready:not([aria-current]) .workflow-step-copy strong {
+  color: #3159b5;
+}
 .workflow-connector {
   position: relative;
   display: flex;

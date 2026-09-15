@@ -813,11 +813,24 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(page.locator(".source-workspace")).toHaveCount(0);
   await page.locator(".project-card").click();
   await expect(page.locator(".source-workspace")).toBeVisible();
+  await expect(page.locator(".page-heading")).toHaveCount(0);
+  await expect(
+    page.locator('.workflow-step[aria-current="step"]'),
+  ).toContainText("Mã nguồn");
+  await expect(page.locator(".workflow-step.next-ready")).toContainText(
+    "Vấn đề & bản sửa",
+  );
   await expect(page.locator(".review-workspace")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Quét mã nguồn", exact: true })
     .click();
   await expect(page.locator(".review-workspace")).toBeVisible();
+  await expect(
+    page.locator('.workflow-step[aria-current="step"]'),
+  ).toContainText("Vấn đề & bản sửa");
+  await expect(page.locator(".workflow-step.next-ready")).toContainText(
+    "Kiểm thử",
+  );
   await expect(page.locator(".issue-card p")).toHaveCount(0);
   await expect(page.locator(".issue-card-meta")).toBeVisible();
   await expect(page.locator(".issue-overview-blocks")).toBeVisible();
@@ -912,9 +925,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page.locator(".breadcrumbs").getByRole("button").click();
   await page.locator(".project-card").click();
   await expect(page.locator(".source-workspace")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Mã nguồn", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".page-heading")).toHaveCount(0);
   await page
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Vấn đề & bản sửa/ })

@@ -89,10 +89,6 @@ const workflowStateLabel = {
   complete: "Hoàn tất",
   failed: "Chưa đạt",
 };
-const navigation = [
-  { id: "projects", label: "Dự án của tôi", icon: "folder" },
-  ...workflowSteps,
-];
 interface ProjectData {
   project: Project;
   files: SourceFile[];
@@ -1124,6 +1120,9 @@ export default function Home() {
       <SessionGate error={sessionError} retry={retrySession} logout={logout} />
     );
   const disabled = Boolean(busy || loading || !data || stale || uncertain);
+  const activeWorkflowIndex = workflowSteps.findIndex(
+    (item) => item.id === activeNav,
+  );
   return (
     <main className="shell connected-shell workspace-v2">
       <aside className="sidebar">
@@ -1205,10 +1204,12 @@ export default function Home() {
                 const nextState = workflowSteps[index + 1]
                   ? workflowState(workflowSteps[index + 1].id)
                   : "locked";
+                const suggestedNext =
+                  index === activeWorkflowIndex + 1 && state !== "locked";
                 return (
                   <div className="workflow-stage" key={item.id}>
                     <button
-                      className={`workflow-step ${state}`}
+                      className={`workflow-step ${state}${suggestedNext ? " next-ready" : ""}`}
                       disabled={Boolean(busy) || state === "locked"}
                       aria-current={activeNav === item.id ? "step" : undefined}
                       aria-label={`${index + 1}. ${t(item.label)} — ${t(workflowStateLabel[state])}. ${t(item.description)}`}
@@ -1490,27 +1491,6 @@ export default function Home() {
           </>
         ) : (
           <>
-            <div className="page-heading">
-              <div>
-                <p className="eyebrow">{data?.project.name}</p>
-                <h1>
-                  {t(navigation.find((n) => n.id === activeNav)?.label ?? "")}
-                </h1>
-                <p>
-                  {activeNav === "source"
-                    ? t("Tải và kiểm tra mã nguồn trước khi bắt đầu phân tích.")
-                    : activeNav === "analysis"
-                      ? t(
-                          "Đọc giải thích, duyệt bản sửa, sau đó áp dụng các đề xuất đã chấp nhận.",
-                        )
-                      : activeNav === "testing"
-                        ? t(
-                            "Chạy bộ test trước và sau bản sửa để phát hiện thay đổi ngoài ý muốn.",
-                          )
-                        : t("Xem các phiên bản đã lưu và khôi phục khi cần.")}
-                </p>
-              </div>
-            </div>
             {loading && <Empty>{t("Đang tải dữ liệu dự án…")}</Empty>}
             {data && (
               <>

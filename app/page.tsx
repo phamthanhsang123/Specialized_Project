@@ -174,6 +174,7 @@ export default function Home() {
   const [proposal, setProposal] = useState<FixProposal | null>(null);
   const [proposalError, setProposalError] = useState("");
   const [proposalLoading, setProposalLoading] = useState(false);
+  const [proposalReload, setProposalReload] = useState(0);
   const [projectSearch, setProjectSearch] = useState("");
   const [reviewTab, setReviewTab] = useState<"explanation" | "diff" | "source">(
     "explanation",
@@ -250,6 +251,9 @@ export default function Home() {
   const selectedIssue =
     filteredIssues.find((item) => item.id === selectedIssueId) ??
     filteredIssues[0];
+  const selectedIssueKey = selectedIssue?.id ?? "";
+  const loadedProjectId = data?.project.id ?? "";
+  const sourceVersion = data?.project.version ?? "";
   const selectedProposal =
     proposal?.issueId === selectedIssue?.id ? proposal : null;
   const counts = useMemo(
@@ -466,7 +470,7 @@ export default function Home() {
   useEffect(() => {
     setContent(null);
     setFileError("");
-    if (!selectedFile || !data || data.project.id !== projectId) return;
+    if (!selectedFile || loadedProjectId !== projectId) return;
     const controller = new AbortController();
     apiFetch<FileContent>(
       `/projects/${encodeURIComponent(projectId)}/files/content?path=${encodeURIComponent(selectedFile)}`,
@@ -483,18 +487,18 @@ export default function Home() {
           setFileError(errorMessage(failure));
       });
     return () => controller.abort();
-  }, [selectedFile, projectId, data]);
+  }, [selectedFile, projectId, loadedProjectId, sourceVersion]);
   useEffect(() => {
     setProposal(null);
     setProposalError("");
     setProposalLoading(false);
-    if (!selectedIssue) return;
+    if (!selectedIssueKey) return;
     const controller = new AbortController();
     setProposalLoading(true);
     apiFetch<{
       issue: Issue;
       proposal: FixProposal | null;
-    }>(`/issues/${encodeURIComponent(selectedIssue.id)}`, {
+    }>(`/issues/${encodeURIComponent(selectedIssueKey)}`, {
       signal: controller.signal,
     })
       .then((result) => {
@@ -510,7 +514,7 @@ export default function Home() {
           setProposalLoading(false);
       });
     return () => controller.abort();
-  }, [selectedIssue, projectId]);
+  }, [selectedIssueKey, projectId, proposalReload]);
   async function performAction(
     label: string,
     action: (id: string, signal: AbortSignal) => Promise<unknown>,
@@ -1893,7 +1897,12 @@ export default function Home() {
                                               ),
                                             "Đã nhận đề xuất AI. Review diff và chạy test sau khi áp dụng.",
                                             "analysis",
-                                          )
+                                          ).then((succeeded) => {
+                                            if (succeeded)
+                                              setProposalReload(
+                                                (current) => current + 1,
+                                              );
+                                          })
                                         }
                                       >
                                         {t("Lấy đề xuất AI cho vấn đề này")}
@@ -1934,13 +1943,24 @@ export default function Home() {
                               <div className="review-actions">
                                 {acceptFeedback?.issueId === selectedIssue.id &&
                                 acceptFeedback.phase === "success" ? (
-                                  <button
-                                    className="accept-button accept-success"
-                                    disabled
-                                  >
-                                    <Icon name="check" size={16} />
-                                    {t("Đã chấp nhận")}
-                                  </button>
+                                  <>
+                                    <button
+                                      className="reject-button action-placeholder"
+                                      disabled
+                                      aria-hidden="true"
+                                      tabIndex={-1}
+                                    >
+                                      <Icon name="x" size={16} />
+                                      {t("Từ chối")}
+                                    </button>
+                                    <button
+                                      className="accept-button accept-success"
+                                      disabled
+                                    >
+                                      <Icon name="check" size={16} />
+                                      {t("Đã chấp nhận")}
+                                    </button>
+                                  </>
                                 ) : selectedIssue.status === "PENDING" ? (
                                   <>
                                     <button

@@ -1255,7 +1255,15 @@
 .accept-button.accept-success {
   border-color: #1e9a6d;
   background: #22a979;
-  animation: accept-success 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+.workspace-v2 .review-actions .accept-button {
+  width: 166px;
+}
+.review-actions .action-placeholder {
+  visibility: hidden;
+}
+.accept-button.accept-success svg {
+  animation: accept-check-in 0.22s ease-out;
 }
 @keyframes result-panel-left {
   from {
@@ -1290,10 +1298,9 @@
     transform: rotate(360deg);
   }
 }
-@keyframes accept-success {
-  50% {
-    transform: scale(1.035);
-    box-shadow: 0 0 0 4px rgba(34, 169, 121, 0.12);
+@keyframes accept-check-in {
+  from {
+    opacity: 0;
   }
 }
 .proposal-panel {
@@ -1950,7 +1957,7 @@
   .review-workspace .issue-card,
   .review-tab-panel,
   .button-spinner,
-  .accept-button.accept-success,
+  .accept-button.accept-success svg,
   .skeleton-square,
   .skeleton-line,
   .skeleton-pill,

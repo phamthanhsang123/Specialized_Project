@@ -14,6 +14,10 @@ class ProjectCreate(BaseModel):
     language: str = "Python 3.12"
 
 
+class ProjectUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
 class ProjectOut(BaseModel):
     id: str
     name: str
@@ -25,6 +29,7 @@ class ProjectOut(BaseModel):
     issueCount: int = 0
     pendingIssueCount: int = 0
     latestTestStatus: TestStatus | None = None
+    deletedAt: str | None = None
 
 
 class FileOut(BaseModel):

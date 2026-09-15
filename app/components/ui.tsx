@@ -14,6 +14,7 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
       "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z",
     upload: "M12 16V4m0 0L8 8m4-4 4 4M5 20h14",
     play: "m8 5 11 7-11 7V5z",
+    edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5z",
     check: "m5 12 4 4L19 6",
     x: "m6 6 12 12M18 6 6 18",
   };

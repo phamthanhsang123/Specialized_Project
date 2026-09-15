@@ -1,15 +1,17 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import datetime
 import difflib
 import json
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from .admin import router as admin_router
 from .ai_routes import router as ai_router
+from .audit import record_event
 from .auth import bootstrap_admin, get_current_user, require_developer, hash_password, router as auth_router
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
@@ -22,6 +24,7 @@ from .schemas import (
     MessageOut,
     ProjectCreate,
     ProjectOut,
+    ProjectUpdate,
     ScanOut,
     TestRunOut,
     UploadOut,
@@ -160,7 +163,9 @@ def ensure_schema_and_seed() -> None:
 
 
 def get_project(project_id: str, db: Session, user: User) -> Project:
-    project = db.query(Project).options(joinedload(Project.files), joinedload(Project.issues)).filter(Project.id == project_id).first()
+    project = db.query(Project).options(joinedload(Project.files), joinedload(Project.issues)).filter(
+        Project.id == project_id, Project.deleted_at.is_(None)
+    ).first()
     if project is None or (user.role != "admin" and project.owner_id != user.id):
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -202,10 +207,21 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
 
     @add(route_app.get, "/projects", response_model=list[ProjectOut])
     def list_projects(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[ProjectOut]:
-        query = db.query(Project)
+        query = db.query(Project).filter(Project.deleted_at.is_(None))
         if user.role != "admin":
             query = query.filter(Project.owner_id == user.id)
         projects = query.order_by(Project.updated_at.desc()).all()
+        return [project_to_out(project) for project in projects]
+
+    @add(route_app.get, "/projects/deleted", response_model=list[ProjectOut])
+    def list_deleted_projects(
+        db: Session = Depends(get_db),
+        user: User = Depends(require_developer),
+    ) -> list[ProjectOut]:
+        projects = db.query(Project).filter(
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        ).order_by(Project.deleted_at.desc()).limit(20).all()
         return [project_to_out(project) for project in projects]
 
     @add(route_app.post, "/projects", response_model=ProjectOut)
@@ -222,6 +238,104 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
     @add(route_app.get, "/projects/{project_id}", response_model=ProjectOut)
     def get_project_detail(project: Project = Depends(authorized_project)) -> ProjectOut:
         return project_to_out(project)
+
+    @add(route_app.patch, "/projects/{project_id}", response_model=ProjectOut)
+    def update_project(
+        payload: ProjectUpdate,
+        project: Project = Depends(authorized_project),
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> ProjectOut:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Tên dự án không được để trống")
+        if name == project.name:
+            return project_to_out(project)
+        previous_name = project.name
+        project.name = name
+        project.updated_at = datetime.utcnow()
+        record_event(
+            db,
+            "PROJECT_RENAMED",
+            actor_id=user.id,
+            project_id=project.id,
+            detail=json.dumps(
+                {"previous_name": previous_name, "project_name": name},
+                ensure_ascii=False,
+            ),
+        )
+        db.commit()
+        db.refresh(project)
+        return project_to_out(project)
+
+    @add(route_app.delete, "/projects/{project_id}", status_code=204)
+    def delete_project(
+        project: Project = Depends(authorized_project),
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> Response:
+        deleted_at = datetime.utcnow()
+        record_event(
+            db,
+            "PROJECT_DELETED",
+            actor_id=user.id,
+            project_id=project.id,
+            detail=json.dumps({"project_name": project.name}, ensure_ascii=False),
+        )
+        project.deleted_at = deleted_at
+        project.updated_at = deleted_at
+        db.commit()
+        return Response(status_code=204)
+
+    @add(route_app.post, "/projects/{project_id}/restore", response_model=ProjectOut)
+    def restore_project(
+        project_id: str,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> ProjectOut:
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        ).first()
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        project.deleted_at = None
+        project.updated_at = datetime.utcnow()
+        record_event(
+            db,
+            "PROJECT_RESTORED",
+            actor_id=user.id,
+            project_id=project.id,
+            detail=json.dumps({"project_name": project.name}, ensure_ascii=False),
+        )
+        db.commit()
+        db.refresh(project)
+        return project_to_out(project)
+
+    @add(route_app.delete, "/projects/{project_id}/permanent", status_code=204)
+    def permanently_delete_project(
+        project_id: str,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> Response:
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.owner_id == user.id,
+            Project.deleted_at.is_not(None),
+        ).first()
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        record_event(
+            db,
+            "PROJECT_PERMANENTLY_DELETED",
+            actor_id=user.id,
+            project_id=project.id,
+            detail=json.dumps({"project_name": project.name}, ensure_ascii=False),
+        )
+        db.delete(project)
+        db.commit()
+        return Response(status_code=204)
 
     @add(route_app.post, "/projects/{project_id}/upload", response_model=UploadOut)
     async def upload_project(

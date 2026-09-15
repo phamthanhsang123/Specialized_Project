@@ -1,6 +1,7 @@
 "use client";
 import { t } from "../lib/i18n";
 import { useTranslation } from "react-i18next";
+import Swal from "sweetalert2";
 
 import {
   ChangeEvent,
@@ -170,6 +171,10 @@ export default function Home() {
   );
   const [filter, setFilter] = useState<Severity | "ALL">("ALL");
   const [showCreate, setShowCreate] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedProjects, setDeletedProjects] = useState<Project[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [deletedError, setDeletedError] = useState("");
   const [showUpload, setShowUpload] = useState<UploadSelection | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<CodeVersion | null>(
     null,
@@ -569,6 +574,230 @@ export default function Home() {
       setBusy("");
     }
   }
+  async function deleteProject(project: Project) {
+    if (actionInProgress.current || uncertain) return;
+    const confirmation = await Swal.fire({
+      title: t("Xóa dự án?"),
+      text: t(
+        'Bạn có chắc chắn muốn xóa dự án "{{name}}"? Toàn bộ mã nguồn, kết quả phân tích, kiểm thử và lịch sử phiên bản sẽ bị xóa.',
+        { name: project.name },
+      ),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: t("Xóa dự án"),
+      cancelButtonText: t("Hủy"),
+      reverseButtons: true,
+      focusCancel: true,
+      buttonsStyling: false,
+      customClass: {
+        popup: "sentinel-alert",
+        actions: "sentinel-alert-actions",
+        confirmButton: "sentinel-alert-delete",
+        cancelButton: "sentinel-alert-cancel",
+      },
+    });
+    if (!confirmation.isConfirmed) return;
+    actionInProgress.current = true;
+    setBusy("Đang xóa dự án…");
+    setError("");
+    try {
+      await apiFetch(`/projects/${encodeURIComponent(project.id)}`, {
+        method: "DELETE",
+      });
+      setProjects((current) =>
+        current.filter((item) => item.id !== project.id),
+      );
+      setDeletedProjects((current) => [
+        { ...project, deletedAt: new Date().toISOString() },
+        ...current.filter((item) => item.id !== project.id),
+      ]);
+      if (currentProject.current === project.id) selectProject("", true);
+      setNotice("Đã xóa dự án {{v0}}.", { v0: project.name });
+    } catch (failure) {
+      setError(errorMessage(failure));
+      if (failure instanceof ApiError && failure.uncertain) {
+        setUncertain(true);
+        setStale(true);
+        setRecovery(
+          "Chưa xác định dự án đã được xóa hay chưa. Hãy đồng bộ lại danh sách trước khi thử lại.",
+        );
+      }
+      setBusy("");
+      await Swal.fire({
+        title: t("Không thể xóa dự án"),
+        text: t("Vui lòng thử lại sau khi kiểm tra kết nối với máy chủ."),
+        icon: "error",
+        confirmButtonText: t("Đóng"),
+        buttonsStyling: false,
+        customClass: {
+          popup: "sentinel-alert",
+          confirmButton: "sentinel-alert-primary",
+        },
+      });
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
+  async function renameProject(project: Project) {
+    if (actionInProgress.current || uncertain) return;
+    const result = await Swal.fire<string>({
+      title: t("Đổi tên dự án"),
+      text: t("Nhập tên mới để dễ nhận biết dự án của bạn."),
+      input: "text",
+      inputValue: project.name,
+      inputAttributes: {
+        maxlength: "255",
+        autocapitalize: "off",
+        "aria-label": t("Tên dự án mới"),
+      },
+      showCancelButton: true,
+      confirmButtonText: t("Lưu tên mới"),
+      cancelButtonText: t("Hủy"),
+      reverseButtons: true,
+      focusCancel: false,
+      buttonsStyling: false,
+      customClass: {
+        popup: "sentinel-alert sentinel-rename-alert",
+        input: "sentinel-alert-input",
+        actions: "sentinel-alert-actions",
+        confirmButton: "sentinel-alert-primary",
+        cancelButton: "sentinel-alert-cancel",
+      },
+      inputValidator: (value) => {
+        const name = value.trim();
+        if (!name) return t("Tên dự án không được để trống.");
+        if (name === project.name) return t("Tên mới phải khác tên hiện tại.");
+        return undefined;
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    const name = result.value.trim();
+    actionInProgress.current = true;
+    setBusy("Đang đổi tên dự án…");
+    setError("");
+    try {
+      const updated = await apiFetch<Project>(
+        `/projects/${encodeURIComponent(project.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ name }),
+        },
+      );
+      setProjects((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setData((current) =>
+        current?.project.id === updated.id
+          ? { ...current, project: updated }
+          : current,
+      );
+      setNotice("Đã đổi tên dự án thành {{v0}}.", { v0: updated.name });
+    } catch (failure) {
+      setError(errorMessage(failure));
+      if (failure instanceof ApiError && failure.uncertain) {
+        setUncertain(true);
+        setStale(true);
+        setRecovery(
+          "Chưa xác định tên dự án đã được cập nhật hay chưa. Hãy đồng bộ lại danh sách trước khi thử lại.",
+        );
+      }
+      await Swal.fire({
+        title: t("Không thể đổi tên dự án"),
+        text: t("Vui lòng thử lại sau khi kiểm tra kết nối với máy chủ."),
+        icon: "error",
+        confirmButtonText: t("Đóng"),
+        buttonsStyling: false,
+        customClass: {
+          popup: "sentinel-alert",
+          confirmButton: "sentinel-alert-primary",
+        },
+      });
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
+  async function openDeletedProjects() {
+    setShowDeleted(true);
+    setDeletedLoading(true);
+    setDeletedError("");
+    try {
+      setDeletedProjects(await apiFetch<Project[]>("/projects/deleted"));
+    } catch (failure) {
+      if (!isAborted(failure)) setDeletedError(errorMessage(failure));
+    } finally {
+      setDeletedLoading(false);
+    }
+  }
+  async function restoreDeletedProject(project: Project) {
+    if (actionInProgress.current) return;
+    actionInProgress.current = true;
+    setBusy("Đang khôi phục dự án…");
+    setDeletedError("");
+    try {
+      const restored = await apiFetch<Project>(
+        `/projects/${encodeURIComponent(project.id)}/restore`,
+        { method: "POST" },
+      );
+      setDeletedProjects((current) =>
+        current.filter((item) => item.id !== project.id),
+      );
+      setProjects((current) => [
+        restored,
+        ...current.filter((item) => item.id !== restored.id),
+      ]);
+      setShowDeleted(false);
+      setNotice("Đã khôi phục dự án {{v0}}.", { v0: restored.name });
+    } catch (failure) {
+      setDeletedError(errorMessage(failure));
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
+  async function permanentlyDeleteProject(project: Project) {
+    if (actionInProgress.current) return;
+    const confirmation = await Swal.fire({
+      title: t("Xóa vĩnh viễn dự án?"),
+      text: t(
+        'Dự án "{{name}}" cùng toàn bộ dữ liệu sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+        { name: project.name },
+      ),
+      icon: "error",
+      showCancelButton: true,
+      confirmButtonText: t("Xóa vĩnh viễn"),
+      cancelButtonText: t("Hủy"),
+      reverseButtons: true,
+      focusCancel: true,
+      buttonsStyling: false,
+      customClass: {
+        popup: "sentinel-alert",
+        actions: "sentinel-alert-actions",
+        confirmButton: "sentinel-alert-delete",
+        cancelButton: "sentinel-alert-cancel",
+      },
+    });
+    if (!confirmation.isConfirmed) return;
+    actionInProgress.current = true;
+    setBusy("Đang xóa vĩnh viễn…");
+    setDeletedError("");
+    try {
+      await apiFetch(`/projects/${encodeURIComponent(project.id)}/permanent`, {
+        method: "DELETE",
+      });
+      setDeletedProjects((current) =>
+        current.filter((item) => item.id !== project.id),
+      );
+      setShowDeleted(false);
+      setNotice("Đã xóa vĩnh viễn dự án {{v0}}.", { v0: project.name });
+    } catch (failure) {
+      setDeletedError(errorMessage(failure));
+    } finally {
+      actionInProgress.current = false;
+      setBusy("");
+    }
+  }
   function rejectUpload(message: string) {
     setShowUpload(null);
     setNotice("");
@@ -753,12 +982,14 @@ export default function Home() {
   }
   useDialog(
     showCreate ||
+      showDeleted ||
       Boolean(showUpload) ||
       Boolean(rollbackTarget) ||
       Boolean(versionDetailTarget),
     Boolean(busy),
     () => {
       setShowCreate(false);
+      setShowDeleted(false);
       setShowUpload(null);
       setRollbackTarget(null);
       setVersionDetailTarget(null);
@@ -969,13 +1200,23 @@ export default function Home() {
                   )}
                 </p>
               </div>
-              <button
-                className="primary-button"
-                disabled={Boolean(busy) || uncertain}
-                onClick={() => setShowCreate(true)}
-              >
-                {t("＋ Tạo dự án")}
-              </button>
+              <div className="project-heading-actions">
+                <button
+                  className="deleted-projects-button"
+                  disabled={Boolean(busy) || uncertain}
+                  onClick={() => void openDeletedProjects()}
+                >
+                  <span aria-hidden="true">↺</span>
+                  {t("Đã xóa gần đây")}
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={Boolean(busy) || uncertain}
+                  onClick={() => setShowCreate(true)}
+                >
+                  {t("＋ Tạo dự án")}
+                </button>
+              </div>
             </div>
             <label className="search-field">
               <Icon name="folder" />
@@ -987,7 +1228,24 @@ export default function Home() {
               />
             </label>
             {listLoading ? (
-              <Empty>{t("Đang tải dự án…")}</Empty>
+              <div
+                className="project-cards project-skeleton-grid"
+                role="status"
+                aria-label={t("Đang tải dự án…")}
+              >
+                {[0, 1, 2].map((item) => (
+                  <div className="project-card-skeleton" key={item}>
+                    <i className="skeleton-square" />
+                    <i className="skeleton-line skeleton-title" />
+                    <i className="skeleton-line" />
+                    <span>
+                      <i className="skeleton-pill" />
+                      <i className="skeleton-pill" />
+                    </span>
+                    <i className="skeleton-line skeleton-short" />
+                  </div>
+                ))}
+              </div>
             ) : !projects.length ? (
               <div className="panel welcome-card">
                 <Icon name="folder" size={40} />
@@ -1014,39 +1272,63 @@ export default function Home() {
                       .includes(projectSearch.toLocaleLowerCase()),
                   )
                   .map((p) => (
-                    <button
-                      className="project-card"
-                      key={p.id}
-                      disabled={Boolean(busy) || uncertain}
-                      onClick={() => selectProject(p.id)}
-                    >
-                      <span className="project-card-icon">
-                        <Icon name="folder" size={24} />
-                      </span>
-                      <span className="project-card-title">{p.name}</span>
-                      <span className="project-meta">
-                        {p.language} · {p.version} ·{" "}
-                        {t("{{count}} tệp", {
-                          count: p.sourceFileCount ?? 0,
+                    <article className="project-card" key={p.id}>
+                      <button
+                        className="project-rename"
+                        type="button"
+                        aria-label={t("Đổi tên dự án {{name}}", {
+                          name: p.name,
                         })}
-                      </span>
-                      <span className="project-health">
-                        <span>
-                          {t("{{count}} vấn đề", {
-                            count: p.issueCount ?? 0,
+                        title={t("Đổi tên dự án")}
+                        disabled={Boolean(busy) || uncertain}
+                        onClick={() => void renameProject(p)}
+                      >
+                        <Icon name="edit" size={16} />
+                      </button>
+                      <button
+                        className="project-delete"
+                        type="button"
+                        aria-label={t("Xóa dự án {{name}}", { name: p.name })}
+                        title={t("Xóa dự án")}
+                        disabled={Boolean(busy) || uncertain}
+                        onClick={() => void deleteProject(p)}
+                      >
+                        ×
+                      </button>
+                      <button
+                        className="project-card-main"
+                        type="button"
+                        disabled={Boolean(busy) || uncertain}
+                        onClick={() => selectProject(p.id)}
+                      >
+                        <span className="project-card-icon">
+                          <Icon name="folder" size={24} />
+                        </span>
+                        <span className="project-card-title">{p.name}</span>
+                        <span className="project-meta">
+                          {p.language} · {p.version} ·{" "}
+                          {t("{{count}} tệp", {
+                            count: p.sourceFileCount ?? 0,
                           })}
                         </span>
-                        <span>
-                          {p.latestTestStatus
-                            ? `${t("Test gần nhất")}: ${t(p.latestTestStatus)}`
-                            : t("Chưa kiểm thử")}
+                        <span className="project-health">
+                          <span>
+                            {t("{{count}} vấn đề", {
+                              count: p.issueCount ?? 0,
+                            })}
+                          </span>
+                          <span>
+                            {p.latestTestStatus
+                              ? `${t("Test gần nhất")}: ${t(p.latestTestStatus)}`
+                              : t("Chưa kiểm thử")}
+                          </span>
                         </span>
-                      </span>
-                      <span className="project-meta">
-                        {t("Cập nhật")} {dateLabel(p.updatedAt)}
-                      </span>
-                      <span className="project-open">{t("Mở dự án →")}</span>
-                    </button>
+                        <span className="project-meta">
+                          {t("Cập nhật")} {dateLabel(p.updatedAt)}
+                        </span>
+                        <span className="project-open">{t("Mở dự án →")}</span>
+                      </button>
+                    </article>
                   ))}
               </div>
             )}
@@ -1999,6 +2281,98 @@ export default function Home() {
           </>
         )}
       </section>
+      {showDeleted && (
+        <div className="admin-modal-backdrop">
+          <section
+            className="admin-modal deleted-projects-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deleted-projects-title"
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label={t("Đóng")}
+              disabled={Boolean(busy)}
+              onClick={() => setShowDeleted(false)}
+            >
+              {t("×")}
+            </button>
+            <p className="modal-eyebrow">{t("THÙNG RÁC DỰ ÁN")}</p>
+            <h2 id="deleted-projects-title">{t("Dự án đã xóa gần đây")}</h2>
+            <p className="deleted-projects-help">
+              {t(
+                "Bạn có thể khôi phục dự án hoặc xóa vĩnh viễn toàn bộ dữ liệu.",
+              )}
+            </p>
+            {deletedError && (
+              <p className="error-text" role="alert">
+                {deletedError}
+              </p>
+            )}
+            {deletedLoading ? (
+              <div
+                className="deleted-project-list"
+                role="status"
+                aria-label={t("Đang tải dự án đã xóa…")}
+              >
+                {[0, 1, 2].map((item) => (
+                  <div
+                    className="deleted-project-row deleted-row-skeleton"
+                    key={item}
+                  >
+                    <i className="skeleton-square small" />
+                    <span>
+                      <i className="skeleton-line skeleton-title" />
+                      <i className="skeleton-line skeleton-short" />
+                    </span>
+                    <i className="skeleton-button" />
+                  </div>
+                ))}
+              </div>
+            ) : deletedProjects.length ? (
+              <div className="deleted-project-list">
+                {deletedProjects.map((project) => (
+                  <article key={project.id} className="deleted-project-row">
+                    <span className="deleted-project-icon">
+                      <Icon name="folder" size={19} />
+                    </span>
+                    <span>
+                      <b>{project.name}</b>
+                      <small>
+                        {t("Đã xóa")}{" "}
+                        {dateLabel(project.deletedAt ?? project.updatedAt)}
+                      </small>
+                    </span>
+                    <span className="deleted-project-actions">
+                      <button
+                        className="restore-project-button"
+                        disabled={Boolean(busy)}
+                        onClick={() => void restoreDeletedProject(project)}
+                      >
+                        {t("Khôi phục")}
+                      </button>
+                      <button
+                        className="permanent-delete-button"
+                        disabled={Boolean(busy)}
+                        onClick={() => void permanentlyDeleteProject(project)}
+                      >
+                        {t("Xóa vĩnh viễn")}
+                      </button>
+                    </span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="deleted-projects-empty">
+                <Icon name="folder" size={30} />
+                <b>{t("Chưa có dự án nào bị xóa")}</b>
+                <span>{t("Các dự án đã xóa sẽ xuất hiện tại đây.")}</span>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
       {showCreate && (
         <div className="admin-modal-backdrop">
           <form

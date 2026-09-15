@@ -6,6 +6,7 @@ import "@fontsource/be-vietnam-pro/700.css";
 import "@fontsource/be-vietnam-pro/800.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
+import "sweetalert2/dist/sweetalert2.min.css";
 import "./globals.css";
 import "./workspace.css";
 import "./admin-enhancements.css";

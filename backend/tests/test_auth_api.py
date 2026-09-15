@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from io import BytesIO
+import json
 import zipfile
 
 from fastapi.testclient import TestClient
@@ -11,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app import main
 from app.auth import bootstrap_admin, hash_password, token_hash, verify_password
 from app.database import Base, get_db
-from app.models import AuthSession, Project, User
+from app.models import AuditEvent, AuthSession, Project, TestCase as CaseModel, User
 from app.services.source import MAX_UPLOAD_BYTES, MAX_PYTHON_FILES
 
 
@@ -131,6 +132,105 @@ def test_owner_isolation_covers_project_and_issue_endpoints(auth_api):
     assert client.post(f"/api/issues/{issue_id}/ai-proposal").status_code == 401
     assert client.post(f"/api/issues/{issue_id}/ai-proposal", headers=bob_headers).status_code == 404
     assert client.get(f"/api/issues/{issue_id}", headers=alice_headers).json()["issue"]["status"] == "PENDING"
+
+
+def test_developer_can_rename_only_owned_active_project(auth_api):
+    client, sessions, _ = auth_api
+    _, alice_headers = authenticate(client)
+    _, bob_headers = authenticate(client, "bob@example.com")
+    _, admin_headers = authenticate(client, "admin@example.com")
+
+    assert client.patch(
+        "/api/projects/alice-project", json={"name": "Blocked"}
+    ).status_code == 401
+    assert client.patch(
+        "/api/projects/alice-project", headers=bob_headers, json={"name": "Blocked"}
+    ).status_code == 404
+    assert client.patch(
+        "/api/projects/alice-project", headers=admin_headers, json={"name": "Blocked"}
+    ).status_code == 403
+    assert client.patch(
+        "/api/projects/alice-project", headers=alice_headers, json={"name": "   "}
+    ).status_code == 422
+
+    renamed = client.patch(
+        "/api/projects/alice-project",
+        headers=alice_headers,
+        json={"name": "  Alice Payment API  "},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Alice Payment API"
+    assert client.get(
+        "/api/projects/alice-project", headers=alice_headers
+    ).json()["name"] == "Alice Payment API"
+
+    with sessions() as db:
+        event = db.query(AuditEvent).filter(AuditEvent.action == "PROJECT_RENAMED").one()
+        assert event.actor_id == "alice"
+        assert event.project_id == "alice-project"
+        assert json.loads(event.detail) == {
+            "previous_name": "Alice project",
+            "project_name": "Alice Payment API",
+        }
+
+
+def test_developer_can_soft_delete_and_restore_only_owned_project(auth_api):
+    client, sessions, _ = auth_api
+    _, alice_headers = authenticate(client)
+    _, bob_headers = authenticate(client, "bob@example.com")
+    _, admin_headers = authenticate(client, "admin@example.com")
+    saved = client.post(
+        "/api/projects/alice-project/test-cases",
+        headers=alice_headers,
+        json={"name": "test_project.py", "code": "def test_ok():\n    assert True\n"},
+    )
+    assert saved.status_code == 201, saved.text
+
+    assert client.delete("/api/projects/alice-project").status_code == 401
+    assert client.delete("/api/projects/alice-project", headers=bob_headers).status_code == 404
+    assert client.delete("/api/projects/alice-project", headers=admin_headers).status_code == 403
+    deleted = client.delete("/api/projects/alice-project", headers=alice_headers)
+    assert deleted.status_code == 204, deleted.text
+    assert deleted.content == b""
+    assert client.get("/api/projects/alice-project", headers=alice_headers).status_code == 404
+    assert client.get("/api/projects/deleted").status_code == 401
+    recently_deleted = client.get("/api/projects/deleted", headers=alice_headers)
+    assert recently_deleted.status_code == 200
+    assert [project["id"] for project in recently_deleted.json()] == ["alice-project"]
+    assert recently_deleted.json()[0]["deletedAt"] is not None
+    assert client.get("/api/projects/deleted", headers=bob_headers).json() == []
+
+    with sessions() as db:
+        assert db.get(Project, "alice-project").deleted_at is not None
+        assert db.query(CaseModel).filter(CaseModel.project_id == "alice-project").count() == 1
+        event = db.query(AuditEvent).filter(AuditEvent.action == "PROJECT_DELETED").one()
+        assert event.actor_id == "alice"
+        assert event.project_id == "alice-project"
+        assert json.loads(event.detail) == {"project_name": "Alice project"}
+
+    assert client.post("/api/projects/alice-project/restore", headers=bob_headers).status_code == 404
+    assert client.post("/api/projects/alice-project/restore", headers=admin_headers).status_code == 403
+    restored = client.post("/api/projects/alice-project/restore", headers=alice_headers)
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["deletedAt"] is None
+    assert client.get("/api/projects/deleted", headers=alice_headers).json() == []
+    assert client.get("/api/projects/alice-project", headers=alice_headers).status_code == 200
+    with sessions() as db:
+        assert db.query(AuditEvent).filter(AuditEvent.action == "PROJECT_RESTORED").count() == 1
+
+    assert client.delete("/api/projects/alice-project", headers=alice_headers).status_code == 204
+    assert client.delete("/api/projects/alice-project/permanent", headers=bob_headers).status_code == 404
+    assert client.delete("/api/projects/alice-project/permanent", headers=admin_headers).status_code == 403
+    permanently_deleted = client.delete(
+        "/api/projects/alice-project/permanent", headers=alice_headers
+    )
+    assert permanently_deleted.status_code == 204, permanently_deleted.text
+    with sessions() as db:
+        assert db.get(Project, "alice-project") is None
+        assert db.query(CaseModel).filter(CaseModel.project_id == "alice-project").count() == 0
+        assert db.query(AuditEvent).filter(
+            AuditEvent.action == "PROJECT_PERMANENTLY_DELETED"
+        ).count() == 1
 
 
 def test_upload_accepts_multiple_python_files_and_preserves_relative_paths(auth_api):

@@ -1031,24 +1031,6 @@
 .workspace-v2 .admin-panel-head small {
   font-size: 12px;
 }
-.issue-filters {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.issue-filters .search-field {
-  flex: 1;
-}
-.issue-filters > label:last-child {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-  color: #647796;
-}
-.issue-filters select,
 .workspace-v2 .filter-button {
   padding: 10px;
   background: white;
@@ -1760,10 +1742,6 @@
   }
   .workspace-v2 .user-controls {
     flex-wrap: wrap;
-  }
-  .issue-filters {
-    align-items: stretch;
-    flex-direction: column;
   }
   .login-language {
     top: 16px;

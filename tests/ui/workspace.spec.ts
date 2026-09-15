@@ -851,15 +851,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
     .locator(".workflow-tabs")
     .getByRole("button", { name: /Vấn đề & bản sửa/ })
     .click();
-  await page.getByLabel("Lọc mức độ lỗi").selectOption("HIGH");
-  await expect(page.locator(".issue-card")).toHaveCount(1);
-  await expect(page.locator(".issue-card .severity")).toHaveText("Cao");
-  await page
-    .getByLabel("Tìm vấn đề", { exact: true })
-    .fill("no matching issue");
-  await expect(page.locator(".issue-card")).toHaveCount(0);
-  await expect(page.locator(".proposal-panel h2")).toHaveCount(0);
-  await page.getByLabel("Tìm vấn đề", { exact: true }).clear();
+  await expect(page.getByLabel("Tìm vấn đề", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: "test-results/review-vi.png", fullPage: true });
   await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);

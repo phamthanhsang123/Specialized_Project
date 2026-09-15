@@ -161,10 +161,6 @@ export default function Home() {
   const [proposalError, setProposalError] = useState("");
   const [proposalLoading, setProposalLoading] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
-  const [issueSearch, setIssueSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    IssueStatus | "ALL" | "RESOLVED"
-  >("ALL");
   const [reviewTab, setReviewTab] = useState<"explanation" | "diff" | "source">(
     "explanation",
   );
@@ -226,19 +222,8 @@ export default function Home() {
   }, []);
   const issues = data?.issues ?? [];
   const filteredIssues = useMemo(
-    () =>
-      issues.filter(
-        (item) =>
-          (filter === "ALL" || item.severity === filter) &&
-          (statusFilter === "ALL" ||
-            item.status === statusFilter ||
-            (statusFilter === "RESOLVED" &&
-              ["APPLIED", "VERIFIED"].includes(item.status))) &&
-          `${item.type} ${item.description} ${item.filePath}`
-            .toLocaleLowerCase()
-            .includes(issueSearch.toLocaleLowerCase()),
-      ),
-    [issues, filter, statusFilter, issueSearch],
+    () => issues.filter((item) => filter === "ALL" || item.severity === filter),
+    [issues, filter],
   );
   const selectedIssue =
     filteredIssues.find((item) => item.id === selectedIssueId) ??
@@ -307,8 +292,6 @@ export default function Home() {
       setNotice("");
       setError("");
       setFilter("ALL");
-      setStatusFilter("ALL");
-      setIssueSearch("");
       setReviewTab("explanation");
       setTestSection("results");
       setTestName("test_project.py");
@@ -1599,36 +1582,6 @@ export default function Home() {
                 )}
                 {activeNav === "analysis" && (
                   <>
-                    <div className="issue-filters">
-                      <label className="search-field">
-                        <input
-                          placeholder={t("Tìm vấn đề hoặc đường dẫn…")}
-                          aria-label={t("Tìm vấn đề")}
-                          value={issueSearch}
-                          onChange={(e) => setIssueSearch(e.target.value)}
-                        />
-                      </label>
-                      <label>
-                        {t("Trạng thái")}
-                        <select
-                          value={statusFilter}
-                          onChange={(e) =>
-                            setStatusFilter(
-                              e.target.value as
-                                IssueStatus | "ALL" | "RESOLVED",
-                            )
-                          }
-                        >
-                          <option value="ALL">{t("Tất cả")}</option>
-                          <option value="RESOLVED">{t("Đã xử lý")}</option>
-                          {Object.entries(statusLabel).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {t(label)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
                     <section className="review-workspace">
                       {" "}
                       <article className="panel issue-panel" id="analysis">

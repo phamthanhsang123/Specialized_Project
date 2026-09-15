@@ -802,11 +802,8 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(page.locator(".issue-card-meta")).toBeVisible();
   await expect(page.locator(".issue-overview-blocks")).toBeVisible();
   await expect(page.locator(".apply-section")).toHaveCount(0);
-  await expect(page.locator(".issue-summary-bar button")).toHaveCount(7);
-  await page
-    .locator(".issue-summary-bar")
-    .getByRole("button", { name: /Cao 1/ })
-    .click();
+  await expect(page.locator(".issue-summary-bar")).toHaveCount(0);
+  await page.getByLabel("Lọc mức độ lỗi").selectOption("HIGH");
   await expect(page.locator(".issue-card")).toHaveCount(1);
   await page.screenshot({
     path: "test-results/review-compact-vi.png",

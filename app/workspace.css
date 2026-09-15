@@ -275,11 +275,21 @@
   animation-delay: 0.3s;
 }
 @keyframes thinking-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @keyframes thinking-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
-  30% { transform: translateY(-5px); opacity: 1; }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .thinking-spinner,
@@ -1020,47 +1030,6 @@
 .workspace-v2 .panel-title small,
 .workspace-v2 .admin-panel-head small {
   font-size: 12px;
-}
-.issue-summary-bar {
-  display: flex;
-  gap: 7px;
-  overflow-x: auto;
-  padding: 2px 0 10px;
-  scrollbar-width: thin;
-}
-.issue-summary-bar button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid #dce4f0;
-  border-radius: 999px;
-  background: #fff;
-  color: #60718b;
-  font-size: 11px;
-}
-.issue-summary-bar button b {
-  display: grid;
-  min-width: 20px;
-  min-height: 20px;
-  place-items: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #eef2f8;
-  color: #344a69;
-  font-size: 10px;
-}
-.issue-summary-bar button.selected {
-  border-color: #5f83df;
-  background: #eef4ff;
-  color: #2857bd;
-  font-weight: 700;
-}
-.issue-summary-bar button.selected b {
-  background: #3567d7;
-  color: #fff;
 }
 .issue-filters {
   display: flex;

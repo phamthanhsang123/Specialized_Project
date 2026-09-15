@@ -48,6 +48,32 @@ def test_json_object_decoder_accepts_provider_double_encoding():
         ai._decode_json_object('[]')
 
 
+def test_finding_location_uses_unique_original_code():
+    item = ai.FindingOutput.model_validate(
+        finding(
+            lineStart=20,
+            lineEnd=25,
+            proposal={
+                "originalCode": "    return a / b",
+                "replacementCode": "    return 0",
+                "reason": "test",
+            },
+        )
+    )
+    ai._normalize_finding_location(item, "def divide(a, b):\n    return a / b\n")
+    assert (item.lineStart, item.lineEnd) == (2, 2)
+
+
+def test_finding_location_accepts_only_trailing_blank_off_by_one():
+    item = ai.FindingOutput.model_validate(finding(lineStart=2, lineEnd=3))
+    ai._normalize_finding_location(item, "a = 1\nb = 2\n")
+    assert (item.lineStart, item.lineEnd) == (2, 2)
+    item.lineStart = 99
+    item.lineEnd = 100
+    with pytest.raises(ai.AIOutputError):
+        ai._normalize_finding_location(item, "a = 1\nb = 2\n")
+
+
 def test_ai_scan_persists_real_findings_and_safe_proposals(ai_db, monkeypatch):
     db, project, file = ai_db
     proposal = {"originalCode": "    return a / b", "replacementCode": "    if b == 0:\n        raise ValueError('zero')\n    return a / b", "reason": "validate"}

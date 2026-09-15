@@ -223,6 +223,33 @@ def analyze_files_with_ai(contents: dict[str, str], provider_id: str | None = No
         raise AIOutputError("Danh sách lỗi AI không đúng schema yêu cầu.") from error
 
 
+def _normalize_finding_location(finding: FindingOutput, content: str) -> None:
+    """Sửa lệch dòng chỉ khi có thể đối chiếu chắc chắn với mã nguồn."""
+    lines = content.splitlines()
+    if 1 <= finding.lineStart <= finding.lineEnd <= len(lines):
+        return
+    if finding.proposal:
+        original_lines = finding.proposal.originalCode.rstrip("\r\n").splitlines()
+        matches = [
+            index
+            for index in range(len(lines) - len(original_lines) + 1)
+            if lines[index : index + len(original_lines)] == original_lines
+        ]
+        if len(matches) == 1:
+            finding.lineStart = matches[0] + 1
+            finding.lineEnd = finding.lineStart + len(original_lines) - 1
+            return
+    # Một số model tính dòng trống sau ký tự xuống dòng cuối tệp.
+    if (
+        content.endswith(("\n", "\r"))
+        and 1 <= finding.lineStart <= len(lines)
+        and finding.lineEnd == len(lines) + 1
+    ):
+        finding.lineEnd = len(lines)
+        return
+    raise AIOutputError("AI trả vị trí lỗi không tồn tại trong source.")
+
+
 def _patch_data(start: int, end: int, content: str, proposal: ProposalOutput, path: str) -> dict:
     lines = content.splitlines(keepends=True)
     if not 1 <= start <= end <= len(lines):
@@ -259,8 +286,9 @@ def scan_with_ai(db: Session, project: Project, provider_id: str | None = None) 
     prepared = []
     for finding in output.issues:
         content = contents.get(finding.filePath)
-        if content is None or not 1 <= finding.lineStart <= finding.lineEnd <= len(content.splitlines()):
+        if content is None:
             raise AIOutputError("AI trả vị trí lỗi không tồn tại trong source.")
+        _normalize_finding_location(finding, content)
         patch = None
         if finding.proposal is not None:
             try:

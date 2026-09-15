@@ -566,9 +566,11 @@ async function workspace(page: Page, role = "developer") {
         },
       ];
     else if (path.endsWith("/accept")) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
       state = "ACCEPTED";
       result = { issue: issue() };
     } else if (path.endsWith("/reject")) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
       state = "REJECTED";
       result = { issue: issue() };
     } else if (path.endsWith("/apply")) {
@@ -840,6 +842,10 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();
+  await expect(
+    page.getByRole("button", { name: "Đang chấp nhận...", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".toast")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
   ).toBeVisible();

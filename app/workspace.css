@@ -1258,9 +1258,13 @@
 }
 .workspace-v2 .review-actions .accept-button {
   width: 166px;
+  flex: 0 0 166px;
+  white-space: nowrap;
 }
 .workspace-v2 .review-actions .reject-button {
   width: 106px;
+  flex: 0 0 106px;
+  white-space: nowrap;
 }
 .accept-button.accept-success svg {
   animation: accept-check-in 0.22s ease-out;

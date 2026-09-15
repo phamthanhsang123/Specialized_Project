@@ -187,6 +187,7 @@ export default function Home() {
     issueId: string;
     phase: "loading" | "success";
   } | null>(null);
+  const [reviewInProgress, setReviewInProgress] = useState(false);
   const [testSection, setTestSection] = useState<"results" | "cases">(
     "results",
   );
@@ -978,6 +979,7 @@ export default function Home() {
   async function reviewIssue(action: "accept" | "reject") {
     if (!selectedIssue) return;
     const issueId = selectedIssue.id;
+    setReviewInProgress(true);
     if (action === "accept") {
       setAcceptFeedback({ issueId, phase: "loading" });
     }
@@ -994,7 +996,7 @@ export default function Home() {
       action === "accept"
         ? "Đã chấp nhận đề xuất. Nhấn Áp dụng để thay đổi source."
         : "Đã từ chối đề xuất.",
-      "analysis",
+      "",
       {
         refresh: false,
         showNotice: false,
@@ -1018,6 +1020,7 @@ export default function Home() {
         },
       },
     );
+    setReviewInProgress(false);
     if (action !== "accept") return;
     if (!succeeded) {
       setAcceptFeedback(null);
@@ -1275,7 +1278,7 @@ export default function Home() {
             </small>
           </div>
         )}
-        {busy && aiScanPhase === "idle" && (
+        {busy && aiScanPhase === "idle" && !reviewInProgress && (
           <div className="toast" role="status">
             {busy}
             {actionController.current && (

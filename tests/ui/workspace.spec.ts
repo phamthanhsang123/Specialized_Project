@@ -265,7 +265,7 @@ test("create, reject and error feedback preserve user control", async ({
   await expect(page.locator(".proposal-title-line .status")).toHaveText(
     "Đã từ chối",
   );
-  await expect(page.locator(".apply-section")).toHaveCount(0);
+  await expect(page.locator(".apply-section")).toBeHidden();
   expect(result.errors).toEqual([]);
 });
 
@@ -821,7 +821,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(page.locator(".issue-card p")).toHaveCount(0);
   await expect(page.locator(".issue-card-meta")).toBeVisible();
   await expect(page.locator(".issue-overview-blocks")).toBeVisible();
-  await expect(page.locator(".apply-section")).toHaveCount(0);
+  await expect(page.locator(".apply-section")).toBeHidden();
   await expect(page.locator(".issue-summary-bar")).toHaveCount(0);
   await page.getByLabel("Lọc mức độ lỗi").selectOption("HIGH");
   await expect(page.locator(".issue-card")).toHaveCount(1);
@@ -839,6 +839,9 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   );
   await page.getByRole("tab", { name: "Bản sửa" }).click();
   const loadsBeforeReview = result.projectLoads();
+  const panelHeightBeforeReview = (
+    await page.locator(".proposal-panel").boundingBox()
+  )?.height;
   await page
     .getByRole("button", { name: "Chấp nhận bản sửa", exact: true })
     .click();
@@ -849,6 +852,27 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await expect(
     page.getByRole("button", { name: "Đã chấp nhận", exact: true }),
   ).toBeVisible();
+  const panelHeightAfterReview = (
+    await page.locator(".proposal-panel").boundingBox()
+  )?.height;
+  expect(panelHeightAfterReview).toBe(panelHeightBeforeReview);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 940, height: 800 });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  if (originalViewport) await page.setViewportSize(originalViewport);
   expect(result.projectLoads()).toBe(loadsBeforeReview);
   await expect(
     page.getByText("Đã chấp nhận đề xuất. Nhấn Áp dụng để thay đổi source.", {

@@ -2058,47 +2058,49 @@ export default function Home() {
                             {t("Chọn một vấn đề sau khi quét để xem đề xuất.")}
                           </Empty>
                         )}
-                        {counts.accepted > 0 && (
-                          <div className="apply-section">
-                            <div>
-                              <b>
-                                {t("{{count}} đề xuất đang chờ áp dụng", {
-                                  count: counts.accepted,
-                                })}
-                              </b>
-                              <small>
-                                {t(
-                                  "Lưu phiên bản trước khi thay đổi source. Sau đó cần chạy test để xác minh.",
-                                )}
-                              </small>
-                            </div>
-                            <button
-                              className="primary-button"
-                              disabled={disabled}
-                              onClick={() =>
-                                void performAction(
-                                  "Đang áp dụng patch…",
-                                  (id, signal) =>
-                                    apiFetch(`/projects/${id}/apply`, {
-                                      signal,
-                                      method: "POST",
-                                    }),
-                                  "Đã tạo phiên bản mới. Chạy kiểm thử để kiểm tra thay đổi.",
-                                  "analysis",
-                                ).then((ok) => {
-                                  if (ok) {
-                                    setTestSection("results");
-                                    setActiveNav("testing");
-                                  }
-                                })
-                              }
-                            >
-                              {t("Áp dụng {{count}} bản sửa đã duyệt", {
+                        <div
+                          className={`apply-section${counts.accepted === 0 ? " apply-section-reserved" : ""}`}
+                          aria-hidden={counts.accepted === 0}
+                        >
+                          <div>
+                            <b>
+                              {t("{{count}} đề xuất đang chờ áp dụng", {
                                 count: counts.accepted,
                               })}
-                            </button>
+                            </b>
+                            <small>
+                              {t(
+                                "Lưu phiên bản trước khi thay đổi source. Sau đó cần chạy test để xác minh.",
+                              )}
+                            </small>
                           </div>
-                        )}
+                          <button
+                            type="button"
+                            className="primary-button"
+                            disabled={disabled || counts.accepted === 0}
+                            onClick={() =>
+                              void performAction(
+                                "Đang áp dụng patch…",
+                                (id, signal) =>
+                                  apiFetch(`/projects/${id}/apply`, {
+                                    signal,
+                                    method: "POST",
+                                  }),
+                                "Đã tạo phiên bản mới. Chạy kiểm thử để kiểm tra thay đổi.",
+                                "analysis",
+                              ).then((ok) => {
+                                if (ok) {
+                                  setTestSection("results");
+                                  setActiveNav("testing");
+                                }
+                              })
+                            }
+                          >
+                            {t("Áp dụng {{count}} bản sửa đã duyệt", {
+                              count: counts.accepted,
+                            })}
+                          </button>
+                        </div>
                       </article>
                     </section>
                   </>

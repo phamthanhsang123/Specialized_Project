@@ -116,7 +116,9 @@ test("stop waiting and timeout never automatically repeat mutations", async ({
   });
   await page.goto("/");
   await page.locator(".project-card").click();
-  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .click();
   await page.getByRole("button", { name: "Dừng chờ", exact: true }).click();
   await expect(page.locator(".recovery-banner")).toContainText(
     "Chưa xác định kết quả",
@@ -238,7 +240,9 @@ test("create, reject and error feedback preserve user control", async ({
       json: { detail: "Analysis service temporarily unavailable" },
     }),
   );
-  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .click();
   await expect(page.locator(".toast-error")).toContainText(
     "Analysis service temporarily unavailable",
   );
@@ -362,6 +366,50 @@ test("admin and login remain readable at mobile width", async ({ page }) => {
   });
 });
 
+test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", async ({
+  page,
+}) => {
+  await workspace(page);
+  let selectedProvider = "";
+  await page.route("**/api/capabilities", (route) =>
+    route.fulfill({
+      json: {
+        aiConfigured: true,
+        analysisModes: ["static", "ai"],
+        aiProviders: [
+          {
+            id: "gemini",
+            name: "Google Gemini",
+            model: "gemini-3.8-flash",
+            configured: true,
+            freeTier: true,
+          },
+          {
+            id: "openai",
+            name: "OpenAI",
+            model: "gpt-5.6-luna",
+            configured: true,
+            freeTier: false,
+          },
+        ],
+        defaultAiProvider: "gemini",
+        sandboxImage: "sentinel-test-runner:local",
+      },
+    }),
+  );
+  await page.route("**/api/projects/p1/ai-scan*", (route) => {
+    selectedProvider =
+      new URL(route.request().url()).searchParams.get("provider") || "";
+    return route.fulfill({ json: { projectId: "p1", issues: [] } });
+  });
+  await page.goto("/");
+  await page.locator(".project-card").click();
+  await page.getByLabel("Chế độ phân tích").selectOption("ai");
+  await page.getByLabel("Nhà cung cấp AI").selectOption("openai");
+  await page.getByRole("button", { name: "Quét bằng AI" }).click();
+  await expect.poll(() => selectedProvider).toBe("openai");
+});
+
 // API fixtures are intercepted: UI tests never overwrite the user's projects.
 async function workspace(page: Page, role = "developer") {
   const errors: string[] = [];
@@ -422,7 +470,20 @@ async function workspace(page: Page, role = "developer") {
     let result: unknown = {};
     if (path === "/auth/me") result = user;
     else if (path === "/capabilities")
-      result = { aiConfigured: false, analysisModes: ["static"] };
+      result = {
+        aiConfigured: false,
+        analysisModes: ["static"],
+        aiProviders: [
+          {
+            id: "gemini",
+            name: "Google Gemini",
+            model: "gemini-3.8-flash",
+            configured: false,
+            freeTier: true,
+          },
+        ],
+        defaultAiProvider: null,
+      };
     else if (path === "/projects" && method === "GET") result = projects;
     else if (path === "/projects/deleted" && method === "GET")
       result = deletedProjects;
@@ -554,7 +615,9 @@ async function workspace(page: Page, role = "developer") {
   return { errors, uploaded: () => uploaded };
 }
 
-test("quick demo login sends the correct account for each role", async ({ page }) => {
+test("quick demo login sends the correct account for each role", async ({
+  page,
+}) => {
   for (const role of ["developer", "admin"] as const) {
     const user = {
       id: role,
@@ -569,7 +632,9 @@ test("quick demo login sends the correct account for each role", async ({ page }
       credentials = route.request().postDataJSON();
       await route.fulfill({ json: { token: "demo-token", user } });
     });
-    await page.route("**/api/auth/me", (route) => route.fulfill({ json: user }));
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({ json: user }),
+    );
     await page.goto(role === "admin" ? "/admin/login" : "/login");
     const quickButton = page.getByRole("button", {
       name:
@@ -729,7 +794,9 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   await page.locator(".project-card").click();
   await expect(page.locator(".source-workspace")).toBeVisible();
   await expect(page.locator(".review-workspace")).toHaveCount(0);
-  await page.getByRole("button", { name: "Quét mã nguồn", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .click();
   await expect(page.locator(".review-workspace")).toBeVisible();
   await expect(page.locator(".issue-card p")).toHaveCount(0);
   await expect(page.locator(".issue-card-meta")).toBeVisible();

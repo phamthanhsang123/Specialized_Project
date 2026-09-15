@@ -22,13 +22,13 @@ try:
 except ImportError:
     from dataset import CASES, DATASET_VERSION  # noqa: E402
 
-from app.config import get_settings  # noqa: E402
 from app.models import SourceFile  # noqa: E402
 from app.services.ai import (  # noqa: E402
     AIOutputError,
     AIUnavailable,
     FindingOutput,
     analyze_files_with_ai,
+    resolve_provider,
 )
 from app.services.source import scan_file  # noqa: E402
 
@@ -122,8 +122,8 @@ def run_static(case: dict[str, Any], path: str) -> list[dict[str, Any]]:
     ]
 
 
-def run_ai(case: dict[str, Any], path: str) -> list[dict[str, Any]]:
-    output = analyze_files_with_ai({path: case["source"]})
+def run_ai(case: dict[str, Any], path: str, provider_id: str | None) -> list[dict[str, Any]]:
+    output = analyze_files_with_ai({path: case["source"]}, provider_id)
     return [prediction_from_ai(item) for item in output.issues]
 
 
@@ -202,7 +202,7 @@ def ratio(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 4) if denominator else None
 
 
-def evaluate(mode: str) -> dict[str, Any]:
+def evaluate(mode: str, provider_id: str | None = None) -> dict[str, Any]:
     case_results = []
     type_counts: dict[str, dict[str, int]] = defaultdict(
         lambda: {"truePositives": 0, "falsePositives": 0, "falseNegatives": 0}
@@ -210,7 +210,7 @@ def evaluate(mode: str) -> dict[str, Any]:
     proposal_total = proposal_valid = severity_correct = 0
     for case in CASES:
         path = f'{case["id"]}.py'
-        predictions = run_static(case, path) if mode == "static" else run_ai(case, path)
+        predictions = run_static(case, path) if mode == "static" else run_ai(case, path, provider_id)
         scored = score_case(case["labels"], predictions, path)
         for matched in scored["matches"]:
             category = matched["label"]["type"]
@@ -255,12 +255,13 @@ def evaluate(mode: str) -> dict[str, Any]:
             "precision": category_precision,
             "recall": category_recall,
         }
-    model = get_settings().ai_model if mode == "ai" else None
+    selected_provider = resolve_provider(provider_id) if mode == "ai" else None
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "datasetVersion": DATASET_VERSION,
         "mode": mode,
-        "model": model,
+        "provider": selected_provider.id if selected_provider else None,
+        "model": selected_provider.model if selected_provider else None,
         "caseCount": len(CASES),
         "labelCount": sum(len(case["labels"]) for case in CASES),
         "predictionCount": sum(len(item["predictions"]) for item in case_results),
@@ -326,6 +327,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["static", "ai"], default="static")
     parser.add_argument(
+        "--provider",
+        choices=["gemini", "openai", "grok"],
+        help="Nhà cung cấp dùng khi --mode ai; mặc định lấy AI_DEFAULT_PROVIDER.",
+    )
+    parser.add_argument(
         "--output-prefix",
         type=Path,
         help="Đường dẫn không có phần mở rộng; mặc định lưu theo thời gian trong evaluation/results.",
@@ -336,7 +342,7 @@ def main() -> int:
     if not prefix.is_absolute():
         prefix = ROOT / prefix
     try:
-        result = evaluate(args.mode)
+        result = evaluate(args.mode, args.provider)
     except (AIUnavailable, AIOutputError) as error:
         print(f"Không thể đánh giá AI: {error}", file=sys.stderr)
         return 2

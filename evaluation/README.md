@@ -8,11 +8,13 @@ Chạy đường cơ sở bằng bộ phân tích tĩnh:
 backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode static --output-prefix evaluation\results\static-baseline
 ```
 
-Để đánh giá LLM thật, cấu hình `AI_API_KEY` và `AI_MODEL` trong `backend/.env`, sau đó chạy:
+Để đánh giá LLM thật, cấu hình khóa của Gemini, OpenAI hoặc Grok trong `backend/.env`, sau đó chạy:
 
 ```powershell
-backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode ai
+backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode ai --provider gemini
 ```
+
+Giá trị `--provider` nhận `gemini`, `openai` hoặc `grok`. Nếu bỏ qua, công cụ dùng `AI_DEFAULT_PROVIDER`.
 
 Mỗi mẫu được gửi riêng bằng đúng prompt và schema của chức năng quét AI trong website. Kết quả JSON giữ chi tiết từng dự đoán; báo cáo Markdown tổng hợp TP, FP, FN, Precision, Recall, F1, độ chính xác mức độ lỗi và tỉ lệ đề xuất biên dịch được.
 

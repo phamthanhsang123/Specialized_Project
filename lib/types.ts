@@ -96,6 +96,14 @@ export interface TestCase {
 export interface Capabilities {
   aiConfigured: boolean;
   analysisModes: string[];
+  aiProviders: {
+    id: string;
+    name: string;
+    model: string;
+    configured: boolean;
+    freeTier: boolean;
+  }[];
+  defaultAiProvider: string | null;
   sandboxImage: string;
 }
 export interface AdminUser extends User {

@@ -7,9 +7,11 @@ import { apiFetch, errorMessage } from "../../lib/api";
 export default function TestExplanation({
   projectId,
   runId,
+  provider,
 }: {
   projectId: string;
   runId: string;
+  provider?: string;
 }) {
   useTranslation();
   const [busy, setBusy] = useState(false);
@@ -23,7 +25,7 @@ export default function TestExplanation({
       const result = await apiFetch<{
         explanation: string;
       }>(
-        `/projects/${encodeURIComponent(projectId)}/test-runs/${encodeURIComponent(runId)}/explain`,
+        `/projects/${encodeURIComponent(projectId)}/test-runs/${encodeURIComponent(runId)}/explain${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`,
         {
           method: "POST",
         },

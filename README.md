@@ -63,7 +63,21 @@ VERIFIED nghĩa là vượt qua bộ test đã chạy, không phải hết mọi
 
 ## AI tùy chọn
 
-Trong `backend/.env` đặt `AI_API_KEY`, `AI_MODEL`, và tùy chọn `AI_BASE_URL` (mặc định `https://api.openai.com/v1`). Dịch vụ cần hỗ trợ [Chat Completions với JSON mode](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+Website cho phép chọn Google Gemini, OpenAI hoặc xAI Grok tại thời điểm chạy. Khóa chỉ lưu trong `backend/.env`; giao diện không nhận và không hiển thị khóa. Cấu hình ít nhất một nhóm biến:
+
+```dotenv
+AI_DEFAULT_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
+
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-luna
+
+XAI_API_KEY=
+XAI_MODEL=grok-4.6
+```
+
+Gemini có Free Tier cho một số model và phù hợp để chạy demo. Dữ liệu gửi bằng Free Tier có thể được Google dùng để cải thiện sản phẩm, vì vậy chỉ dùng mã mẫu hoặc mã không nhạy cảm. OpenAI và Grok API tính phí theo token. Các dịch vụ đều được gọi qua Chat Completions tương thích và đầu ra JSON.
 
 Chỉ khi bấm thao tác AI, source/log mới được gửi tới dịch vụ cấu hình. Không có khóa/model vẫn dùng phân tích tĩnh; không tự gọi API có tính phí khi khởi động. AI hỗ trợ phát hiện/giải thích lỗi, sinh patch, sinh pytest và giải thích log. JSON, vị trí patch, source hash và cú pháp đều được kiểm tra. AI không tự Apply hay thay đổi kết quả pytest. Test AI được lưu tên mới, không ghi đè test người dùng.
 
@@ -77,10 +91,10 @@ Bộ dữ liệu ban đầu trong `evaluation/` có 20 mẫu Python, gồm 10 l�
 backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode static --output-prefix evaluation\results\static-baseline
 ```
 
-Sau khi cấu hình `AI_API_KEY` và `AI_MODEL` trong `backend/.env`, chạy cùng bộ dữ liệu bằng LLM thật:
+Sau khi cấu hình khóa trong `backend/.env`, chạy cùng bộ dữ liệu bằng LLM thật và chọn nhà cung cấp:
 
 ```powershell
-backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode ai
+backend\.venv\Scripts\python.exe evaluation\evaluate.py --mode ai --provider gemini
 ```
 
 Công cụ xuất JSON chi tiết và báo cáo Markdown gồm TP, FP, FN, Precision, Recall, F1, độ chính xác mức độ lỗi và tỉ lệ đề xuất đúng cú pháp. Xem hướng dẫn và giới hạn tại [evaluation/README.md](evaluation/README.md).

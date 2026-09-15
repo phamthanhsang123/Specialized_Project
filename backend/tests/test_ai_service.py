@@ -89,8 +89,52 @@ def test_ai_generated_names_cannot_overwrite_manual_tests(ai_db, monkeypatch):
 
 def test_null_provider_choice_is_reported_cleanly(monkeypatch):
     import httpx
-    monkeypatch.setattr(ai, 'configured', lambda: True)
+    monkeypatch.setattr(ai, 'resolve_provider', lambda *_: ai.AIProvider('test', 'Test', 'secret', 'https://provider.invalid', 'test-model', False))
     response = httpx.Response(200, json={'choices': [None]}, request=httpx.Request('POST','https://provider.invalid/chat/completions'))
     monkeypatch.setattr(ai.httpx, 'post', lambda *args, **kwargs: response)
     with pytest.raises(ai.AIOutputError):
         ai._request_json('JSON', {})
+
+
+def test_provider_selection_uses_only_server_side_configuration(monkeypatch):
+    provider = ai.AIProvider('gemini', 'Google Gemini', 'secret', 'https://gemini.invalid', 'gemini-test', True)
+    monkeypatch.setattr(ai, 'providers', lambda: [provider])
+    assert ai.resolve_provider('gemini') == provider
+    assert ai.provider_catalog() == [{
+        'id': 'gemini',
+        'name': 'Google Gemini',
+        'model': 'gemini-test',
+        'configured': True,
+        'freeTier': True,
+    }]
+    assert 'secret' not in str(ai.provider_catalog())
+
+
+def test_request_uses_selected_provider_endpoint_and_model(monkeypatch):
+    import httpx
+    provider = ai.AIProvider('gemini', 'Google Gemini', 'server-secret', 'https://gemini.invalid/openai', 'gemini-test', True)
+    monkeypatch.setattr(ai, 'resolve_provider', lambda provider_id=None: provider)
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(url=url, headers=kwargs['headers'], body=kwargs['json'])
+        return httpx.Response(
+            200,
+            json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{"ok":true}'}}]},
+            request=httpx.Request('POST', url),
+        )
+
+    monkeypatch.setattr(ai.httpx, 'post', fake_post)
+    assert ai._request_json('JSON', {}, 'gemini') == {'ok': True}
+    assert captured['url'] == 'https://gemini.invalid/openai/chat/completions'
+    assert captured['headers']['Authorization'] == 'Bearer server-secret'
+    assert captured['body']['model'] == 'gemini-test'
+
+
+def test_unconfigured_and_unknown_provider_are_rejected(monkeypatch):
+    provider = ai.AIProvider('gemini', 'Google Gemini', '', 'https://gemini.invalid', 'gemini-test', True)
+    monkeypatch.setattr(ai, 'providers', lambda: [provider])
+    with pytest.raises(ai.AIUnavailable, match='Google Gemini'):
+        ai.resolve_provider('gemini')
+    with pytest.raises(ai.AIOutputError, match='không hợp lệ'):
+        ai.resolve_provider('unknown')

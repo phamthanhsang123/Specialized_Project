@@ -21,21 +21,21 @@ POST /api/projects/{id}/upload                multipart: file (.py/.zip)
 GET  /api/projects/{id}/files
 GET  /api/projects/{id}/files/content?path=...
 POST /api/projects/{id}/scan                  phân tích tĩnh
-POST /api/projects/{id}/ai-scan
+POST /api/projects/{id}/ai-scan?provider=gemini
 GET  /api/projects/{id}/issues
 GET  /api/issues/{id}
 GET  /api/issues/{id}/proposal
-POST /api/issues/{id}/ai-proposal
+POST /api/issues/{id}/ai-proposal?provider=gemini
 POST /api/issues/{id}/accept
 POST /api/issues/{id}/reject
 POST /api/projects/{id}/apply
 GET  /api/projects/{id}/test-cases
 POST /api/projects/{id}/test-cases            {name,code}, cập nhật nếu trùng name
-POST /api/projects/{id}/test-cases/generate   sinh test AI với tên mới
+POST /api/projects/{id}/test-cases/generate?provider=gemini   sinh test AI với tên mới
 POST /api/projects/{id}/test
 GET  /api/projects/{id}/test-runs
 GET  /api/projects/{id}/test-results          alias test-runs
-POST /api/projects/{id}/test-runs/{runId}/explain
+POST /api/projects/{id}/test-runs/{runId}/explain?provider=gemini
 GET  /api/projects/{id}/versions
 POST /api/projects/{id}/rollback?version=v2
 GET  /api/admin/overview                     chỉ Admin

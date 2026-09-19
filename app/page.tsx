@@ -812,7 +812,7 @@ export default function Home() {
         confirmButton: "sentinel-alert-primary",
         cancelButton: "sentinel-alert-cancel",
       },
-      inputValidator: (value) => {
+      inputValidator: (value: string) => {
         const name = value.trim();
         if (!name) return t("Tên dự án không được để trống.");
         if (name === project.name) return t("Tên mới phải khác tên hiện tại.");

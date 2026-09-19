@@ -44,6 +44,7 @@ import TestExplanation from "./components/test-explanation";
 import TestComparison from "./components/test-comparison";
 import { useStepFocus } from "./components/use-step-focus";
 import RecoveryBanner from "./components/recovery-banner";
+import { LanguageSwitcher } from "./components/language-switcher";
 const severityLabel: Record<Severity, string> = {
   CRITICAL: "Nghiêm trọng",
   HIGH: "Cao",
@@ -55,7 +56,7 @@ const statusLabel: Record<IssueStatus, string> = {
   ACCEPTED: "Đã chấp nhận",
   REJECTED: "Đã từ chối",
   APPLIED: "Đã áp dụng",
-  VERIFIED: "Đã xác minh",
+  VERIFIED: "Đã qua kiểm thử",
   FAILED: "Xác minh thất bại",
 };
 const workflowSteps = [
@@ -1364,6 +1365,7 @@ export default function Home() {
               })}
             </p>
           )}
+          <LanguageSwitcher />
         </header>
         {aiScanPhase !== "idle" && (
           <div
@@ -2423,7 +2425,10 @@ export default function Home() {
                         <div className="preview-section">
                           <div className="preview-intro">
                             <div>
-                              <h3>{t("So sánh giao diện trước và sau")}</h3>
+                              <h3>
+                                {t("So sánh giao diện trước và sau")}
+                                <span className="preview-beta">{t("Thử nghiệm")}</span>
+                              </h3>
                               <p>
                                 {t(
                                   "Chạy hai phiên bản trong sandbox riêng để kiểm tra trực tiếp bản sửa trên trình duyệt.",

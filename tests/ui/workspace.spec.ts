@@ -763,20 +763,27 @@ test("quick demo login sends the correct account for each role", async ({
   }
 });
 
-test("interface stays Vietnamese even when an old English preference exists", async ({
+test("language preference is restored and can be changed", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    localStorage.setItem("sentinel.language", "en");
+    if (!sessionStorage.getItem("sentinel.language-seeded")) {
+      localStorage.setItem("sentinel.language", "en");
+      sessionStorage.setItem("sentinel.language-seeded", "true");
+    }
   });
   await page.goto("/login");
+  await expect(
+    page.getByRole("heading", { name: "Sign in to your workspace" }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await page.getByLabel("Language").selectOption("vi");
   await expect(
     page.getByRole("heading", { name: "Đăng nhập không gian làm việc" }),
   ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "vi");
-  await expect(page.getByLabel("Ngôn ngữ")).toHaveCount(0);
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Đăng nhập không gian làm việc" }),

@@ -41,7 +41,7 @@ export function Drawer({
       >
         <header className="drawer-heading">
           <div>
-            <span className="admin-kicker">SENTINEL / QUẢN TRỊ</span>
+            <span className="admin-kicker">{t("SENTINEL / QUẢN TRỊ")}</span>
             <h2 id="drawer-title">{title}</h2>
           </div>
           <button

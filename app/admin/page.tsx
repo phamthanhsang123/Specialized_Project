@@ -24,6 +24,7 @@ import {
   type UserAction,
 } from "./admin-details";
 import ActivityPanel from "./activity-panel";
+import { LanguageSwitcher } from "../components/language-switcher";
 import {
   dateLabel,
   Empty,
@@ -237,7 +238,7 @@ export default function AdminPage() {
             <Icon name="spark" size={20} />
           </span>
           <span>sentinel</span>
-          <small>BẢNG QUẢN TRỊ</small>
+          <small>{t("BẢNG QUẢN TRỊ")}</small>
         </div>
         <div className="admin-workspace">
           <span className="admin-avatar admin-avatar-gold">S</span>
@@ -279,12 +280,13 @@ export default function AdminPage() {
       <section className="admin-content" ref={viewport}>
         <header className="admin-topbar">
           <div>
-            <span className="admin-kicker">QUẢN TRỊ</span>
+            <span className="admin-kicker">{t("QUẢN TRỊ")}</span>
             <h1>
               {t(navigation.find((item) => item.id === activeNav)?.label ?? "")}
             </h1>
           </div>
           <div className="admin-top-actions">
+            <LanguageSwitcher />
             <span className="admin-live">
               {updatedAt
                 ? t("Cập nhật {{v0}}", { v0: dateLabel(updatedAt) })

@@ -16,6 +16,7 @@ import {
 import type { LoginResponse, User } from "../../lib/types";
 import { landingPath } from "../../lib/auth";
 import { useMessage } from "./use-message";
+import { LanguageSwitcher } from "./language-switcher";
 
 const QUICK_LOGIN_DELAY_MS = 1800;
 
@@ -107,12 +108,12 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
     <main className={`login-page${admin ? " admin-login-page" : ""}`}>
       <section className="login-art">
         <div className="login-brand">
-          <span>✦</span> sentinel <small>DUYỆT MÃ NGUỒN BẰNG AI</small>
+          <span>✦</span> sentinel <small>{t("DUYỆT MÃ NGUỒN BẰNG AI")}</small>
         </div>
         <div className="login-copy">
           <p>
             {admin
-              ? "BẢNG ĐIỀU KHIỂN QUẢN TRỊ"
+              ? t("BẢNG ĐIỀU KHIỂN QUẢN TRỊ")
               : t("NỀN TẢNG PHÁT TRIỂN AN TOÀN")}
           </p>
           <h1>
@@ -154,9 +155,12 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
         </div>
       </section>
       <section className="login-form-wrap">
+        <div className="login-language">
+          <LanguageSwitcher />
+        </div>
         <form className="login-form" onSubmit={submit}>
           <p className="form-eyebrow">
-            {admin ? "TRUY CẬP QUẢN TRỊ" : t("CHÀO MỪNG TRỞ LẠI")}
+            {admin ? t("TRUY CẬP QUẢN TRỊ") : t("CHÀO MỪNG TRỞ LẠI")}
           </p>
           <h2>
             {admin
@@ -168,11 +172,11 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           </p>
           <div className="role-picker">
             <Link className={!admin ? "selected" : ""} href="/login">
-              <b>⌘ Lập trình viên</b>
+              <b>⌘ {t("Lập trình viên")}</b>
               <small>{t("Phân tích và sửa mã nguồn")}</small>
             </Link>
             <Link className={admin ? "selected" : ""} href="/admin/login">
-              <b>♙ Quản trị viên</b>
+              <b>♙ {t("Quản trị viên")}</b>
               <small>{t("Quản lý hệ thống")}</small>
             </Link>
           </div>

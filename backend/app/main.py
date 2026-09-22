@@ -33,11 +33,11 @@ from .schemas import (
     VersionOut,
 )
 from .services.source import (
-    MAX_PYTHON_FILES,
+    MAX_SOURCE_FILES,
     MAX_UPLOAD_BYTES,
     apply_accepted_fixes,
     create_snapshot,
-    extract_python_uploads,
+    extract_source_uploads,
     file_to_out,
     issue_to_out,
     project_to_out,
@@ -361,9 +361,9 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
         if upload is not None:
             selected.append(upload)
         if not selected:
-            raise HTTPException(status_code=400, detail="Vui lòng chọn file Python hoặc ZIP")
-        if len(selected) > MAX_PYTHON_FILES:
-            raise HTTPException(status_code=400, detail="Upload exceeds 500 Python files")
+            raise HTTPException(status_code=400, detail="Vui lòng chọn mã nguồn hoặc ZIP")
+        if len(selected) > MAX_SOURCE_FILES:
+            raise HTTPException(status_code=400, detail="Upload exceeds 500 source files")
 
         uploaded: list[tuple[str, bytes]] = []
         total_bytes = 0
@@ -372,13 +372,13 @@ def register_routes(route_app: FastAPI, prefix: str = "") -> None:
             total_bytes += len(data)
             if total_bytes > MAX_UPLOAD_BYTES:
                 raise HTTPException(status_code=413, detail="Tổng file upload không được vượt quá 10 MB")
-            uploaded.append((item.filename or "upload.py", data))
+            uploaded.append((item.filename or "source.txt", data))
         try:
-            files = extract_python_uploads(uploaded)
+            files = extract_source_uploads(uploaded)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         if not files:
-            raise HTTPException(status_code=400, detail="Upload does not contain Python files")
+            raise HTTPException(status_code=400, detail="Upload does not contain supported source files")
         try:
             created = replace_project_files(db, project, files)
         except ValueError as error:

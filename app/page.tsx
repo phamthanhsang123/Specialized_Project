@@ -113,6 +113,23 @@ interface UploadSelection {
 const MAX_UPLOAD_FILES = 500;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const UPLOAD_PREVIEW_LIMIT = 6;
+const SOURCE_FILE_PATTERN =
+  /\.(py|js|jsx|mjs|cjs|ts|tsx|json|html?|css|scss|sass|less|vue|svelte|toml|ya?ml)$/i;
+const SOURCE_FILE_ACCEPT =
+  ".zip,.py,.js,.jsx,.mjs,.cjs,.ts,.tsx,.json,.html,.htm,.css,.scss,.sass,.less,.vue,.svelte,.txt,.toml,.yaml,.yml";
+const IGNORED_SOURCE_DIRECTORIES = new Set([
+  ".git",
+  ".next",
+  ".nuxt",
+  ".output",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  "__pycache__",
+  ".venv",
+  "venv",
+]);
 const AI_SCAN_MINIMUM_MS = 3400;
 const AI_SCAN_SUCCESS_MS = 450;
 const AI_SCAN_MESSAGES = [
@@ -132,6 +149,28 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function sourceBadge(path: string) {
+  const extension = path.split(".").pop()?.toLocaleLowerCase() ?? "";
+  if (["js", "jsx", "mjs", "cjs"].includes(extension)) return "JS";
+  if (["ts", "tsx"].includes(extension)) return "TS";
+  if (["html", "htm"].includes(extension)) return "HT";
+  if (["css", "scss", "sass", "less"].includes(extension)) return "CS";
+  if (extension === "json") return "{}";
+  return extension === "py" ? "PY" : "TX";
+}
+function supportedSourceName(name: string) {
+  return SOURCE_FILE_PATTERN.test(name) || /^requirements.*\.txt$/i.test(name);
+}
+function supportedFolderFile(file: File) {
+  const path = (file.webkitRelativePath || file.name).replace(/\\/g, "/");
+  const parts = path.split("/");
+  return (
+    supportedSourceName(file.name) &&
+    !parts
+      .slice(0, -1)
+      .some((part) => IGNORED_SOURCE_DIRECTORIES.has(part.toLocaleLowerCase()))
+  );
 }
 function PreviewFrame({
   title,
@@ -510,6 +549,17 @@ export default function Home() {
     if (projectId && user) void refreshProject(projectId);
     return () => projectController.current?.abort();
   }, [projectId, user, refreshProject]);
+  useEffect(() => {
+    const language = data?.project.language.toLocaleLowerCase();
+    if (!language) return;
+    if (language.includes("typescript")) {
+      selectPreviewRuntime("typescript");
+    } else if (language.includes("javascript")) {
+      selectPreviewRuntime("javascript");
+    } else {
+      selectPreviewRuntime("python");
+    }
+  }, [data?.project.id, data?.project.language]);
   useEffect(() => {
     if (aiScanPhase !== "scanning") return;
     setAiScanMessageIndex(0);
@@ -932,15 +982,21 @@ export default function Home() {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (!files.length) return;
-    if (files.some((file) => !/\.(py|zip)$/i.test(file.name))) {
-      rejectUpload(t("Chỉ hỗ trợ tệp .py hoặc .zip."));
+    if (
+      files.some(
+        (file) => !supportedSourceName(file.name) && !/\.zip$/i.test(file.name),
+      )
+    ) {
+      rejectUpload(
+        t("Chỉ hỗ trợ mã nguồn Python, JavaScript, TypeScript hoặc ZIP."),
+      );
       return;
     }
     const zipCount = files.filter((file) => /\.zip$/i.test(file.name)).length;
     if (zipCount && files.length > 1) {
       rejectUpload(
         t(
-          "Không thể tải ZIP cùng các tệp khác. Hãy chọn một ZIP hoặc nhiều tệp .py.",
+          "Không thể tải ZIP cùng các tệp khác. Hãy chọn một ZIP hoặc nhiều tệp mã nguồn.",
         ),
       );
       return;
@@ -954,7 +1010,7 @@ export default function Home() {
       label:
         files.length === 1
           ? files[0].name
-          : t("{{v0}} tệp Python", { v0: files.length }),
+          : t("{{v0}} tệp mã nguồn", { v0: files.length }),
       items,
       ignoredCount: 0,
       totalBytes: files.reduce((total, file) => total + file.size, 0),
@@ -964,15 +1020,15 @@ export default function Home() {
     const chosenFiles = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (!chosenFiles.length) {
-      rejectUpload(t("Thư mục này không có tệp .py để tải lên."));
+      rejectUpload(t("Thư mục này không có mã nguồn được hỗ trợ để tải lên."));
       return;
     }
-    const pythonFiles = chosenFiles.filter((file) => /\.py$/i.test(file.name));
-    if (!pythonFiles.length) {
-      rejectUpload(t("Thư mục này không có tệp .py để tải lên."));
+    const sourceFiles = chosenFiles.filter(supportedFolderFile);
+    if (!sourceFiles.length) {
+      rejectUpload(t("Thư mục này không có mã nguồn được hỗ trợ để tải lên."));
       return;
     }
-    const rawPaths = pythonFiles.map((file) =>
+    const rawPaths = sourceFiles.map((file) =>
       (file.webkitRelativePath || file.name)
         .replace(/\\/g, "/")
         .split("/")
@@ -983,7 +1039,7 @@ export default function Home() {
     const commonRoot = Boolean(
       root && rawPaths.every((path) => path.startsWith(`${root}/`)),
     );
-    const items = pythonFiles.map((file, index) => ({
+    const items = sourceFiles.map((file, index) => ({
       file,
       path: commonRoot
         ? rawPaths[index].slice(root.length + 1) || file.name
@@ -993,8 +1049,8 @@ export default function Home() {
       mode: "folder",
       label: commonRoot ? root : t("Thư mục đã chọn"),
       items,
-      ignoredCount: chosenFiles.length - pythonFiles.length,
-      totalBytes: pythonFiles.reduce((total, file) => total + file.size, 0),
+      ignoredCount: chosenFiles.length - sourceFiles.length,
+      totalBytes: sourceFiles.reduce((total, file) => total + file.size, 0),
     });
   }
   function closeUpload() {
@@ -1620,12 +1676,12 @@ export default function Home() {
                           {t("Tải tệp")}
                           <input
                             type="file"
-                            accept=".zip,.py"
+                            accept={SOURCE_FILE_ACCEPT}
                             multiple
                             onChange={chooseFiles}
                             disabled={disabled}
                             aria-label={t(
-                              "Tải một hoặc nhiều tệp Python, hoặc một tệp ZIP",
+                              "Tải một hoặc nhiều tệp mã nguồn, hoặc một tệp ZIP",
                             )}
                           />
                         </label>
@@ -1638,12 +1694,12 @@ export default function Home() {
                           <input
                             ref={folderInputRef}
                             type="file"
-                            accept=".py"
+                            accept={SOURCE_FILE_ACCEPT.replace(".zip,", "")}
                             multiple
                             onChange={chooseFolder}
                             disabled={disabled}
                             aria-label={t(
-                              "Tải toàn bộ thư mục mã nguồn Python",
+                              "Tải toàn bộ thư mục mã nguồn được hỗ trợ",
                             )}
                           />
                         </label>
@@ -1758,14 +1814,16 @@ export default function Home() {
                               title={file.path}
                               onClick={() => setSelectedFile(file.path)}
                             >
-                              <span className="py-icon">PY</span>
+                              <span className="py-icon">
+                                {sourceBadge(file.path)}
+                              </span>
                               <span>{file.path}</span>
                             </button>
                           ))}
                           {!data.files.length && (
                             <Empty>
                               {t(
-                                "Tải tệp .py, .zip hoặc cả thư mục để bắt đầu.",
+                                "Tải mã nguồn Python, JavaScript, TypeScript, ZIP hoặc cả thư mục để bắt đầu.",
                               )}
                             </Empty>
                           )}
@@ -1774,7 +1832,9 @@ export default function Home() {
                       <article className="panel code-panel">
                         <div className="panel-title">
                           <div className="file-title">
-                            <span className="py-icon">PY</span>
+                            <span className="py-icon">
+                              {sourceBadge(selectedFile)}
+                            </span>
                             <b>{selectedFile || t("Chưa chọn tệp")}</b>
                           </div>
                           <small>UTF-8</small>

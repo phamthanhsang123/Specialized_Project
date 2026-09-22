@@ -17,7 +17,7 @@ PATCH /api/projects/{id}                    {name}
 DELETE /api/projects/{id}                   chuyển vào thùng rác
 POST /api/projects/{id}/restore             khôi phục từ thùng rác
 DELETE /api/projects/{id}/permanent         xóa vĩnh viễn
-POST /api/projects/{id}/upload                multipart: file (.py/.zip)
+POST /api/projects/{id}/upload                multipart: source Python/JS/TS hoặc ZIP
 GET  /api/projects/{id}/files
 GET  /api/projects/{id}/files/content?path=...
 POST /api/projects/{id}/scan                  phân tích tĩnh

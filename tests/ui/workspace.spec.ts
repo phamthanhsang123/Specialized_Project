@@ -1034,13 +1034,22 @@ test("upload confirmation, modal keyboard, fixed sidebar and narrow viewport", a
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.locator(".project-card").click();
   await page
-    .getByLabel("Tải một hoặc nhiều tệp Python, hoặc một tệp ZIP")
-    .setInputFiles({
-      name: "payment.py",
-      mimeType: "text/x-python",
-      buffer: Buffer.from("# Mã nguồn tiếng Việt\nx = 1"),
-    });
+    .getByLabel("Tải một hoặc nhiều tệp mã nguồn, hoặc một tệp ZIP")
+    .setInputFiles([
+      {
+        name: "package.json",
+        mimeType: "application/json",
+        buffer: Buffer.from('{"scripts":{"dev":"vite"}}'),
+      },
+      {
+        name: "main.js",
+        mimeType: "text/javascript",
+        buffer: Buffer.from("document.body.textContent = 'Sentinel';"),
+      },
+    ]);
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).toContainText("package.json");
+  await expect(page.getByRole("dialog")).toContainText("main.js");
   await page.getByRole("button", { name: "Tải và thay mã nguồn" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(result.uploaded()).toBe(true);

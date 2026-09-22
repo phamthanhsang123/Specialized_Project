@@ -3,12 +3,15 @@ import difflib
 import hashlib
 import json
 import re
+import shutil
+import subprocess
+import tempfile
 import unicodedata
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -20,7 +23,9 @@ from ..schemas import FileOut, FixProposalOut, IssueOut, ProjectOut, TestRunOut,
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_SOURCE_BYTES = 10 * 1024 * 1024
-MAX_PYTHON_FILES = 500
+MAX_SOURCE_FILES = 500
+# Backward-compatible name used by older callers/tests.
+MAX_PYTHON_FILES = MAX_SOURCE_FILES
 MAX_SOURCE_PATH_CHARS = 512
 MAX_SOURCE_PATH_SEGMENT_CHARS = 255
 _ZIP_READ_CHUNK_BYTES = 64 * 1024
@@ -29,6 +34,32 @@ _WINDOWS_RESERVED_PATH_STEMS = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{index}" for index in range(1, 10)}
     | {f"LPT{index}" for index in range(1, 10)}
+)
+SUPPORTED_SOURCE_EXTENSIONS = frozenset(
+    {
+        ".py",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".json",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".vue",
+        ".svelte",
+        ".toml",
+        ".yaml",
+        ".yml",
+    }
+)
+IGNORED_SOURCE_DIRECTORIES = frozenset(
+    {".git", ".next", ".nuxt", ".output", "node_modules", "dist", "build", "coverage", "__pycache__", ".venv", "venv"}
 )
 
 
@@ -49,6 +80,47 @@ class DetectedIssue:
 
 def content_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def validate_source_syntax(path: str, content: str) -> None:
+    """Validate an auto-generated patch without executing project code."""
+    suffix = PurePosixPath(path).suffix.casefold()
+    if suffix == ".py":
+        try:
+            compile(content, path, "exec")
+        except SyntaxError as error:
+            raise ValueError(f"Lỗi cú pháp Python ở dòng {error.lineno}: {error.msg}") from error
+        return
+    if suffix in {".js", ".mjs", ".cjs"}:
+        node = shutil.which("node")
+        if node is None:
+            raise ValueError("Chưa có Node.js để kiểm tra cú pháp JavaScript")
+        temporary_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".mjs", encoding="utf-8", delete=False
+            ) as temporary:
+                temporary.write(content)
+                temporary_path = temporary.name
+            checked = subprocess.run(
+                [node, "--check", temporary_path],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise ValueError("Không thể kiểm tra cú pháp JavaScript") from error
+        finally:
+            if temporary_path:
+                try:
+                    Path(temporary_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+        if checked.returncode != 0:
+            raise ValueError("Mã JavaScript sai cú pháp")
+        return
+    raise ValueError("Bản sửa tự động hiện chỉ hỗ trợ tệp Python và JavaScript")
 
 
 def project_to_out(project: Project) -> ProjectOut:
@@ -141,14 +213,39 @@ def _register_upload_path(seen_path_keys: set[str], path: str) -> None:
     seen_path_keys.add(path_key)
 
 
-def _decode_python_source(data: bytes) -> str:
+def is_supported_source_path(path: str) -> bool:
+    candidate = PurePosixPath(path.replace("\\", "/"))
+    if any(part.casefold() in IGNORED_SOURCE_DIRECTORIES for part in candidate.parts[:-1]):
+        return False
+    filename = candidate.name.casefold()
+    return (
+        candidate.suffix.casefold() in SUPPORTED_SOURCE_EXTENSIONS
+        or (filename.startswith("requirements") and filename.endswith(".txt"))
+    )
+
+
+def detect_project_language(files: dict[str, str]) -> str:
+    suffixes = {PurePosixPath(path).suffix.casefold() for path in files}
+    filenames = {PurePosixPath(path).name.casefold() for path in files}
+    if suffixes & {".ts", ".tsx"} or "tsconfig.json" in filenames:
+        return "TypeScript"
+    if (
+        suffixes
+        & {".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".html", ".htm", ".css"}
+        or "package.json" in filenames
+    ):
+        return "JavaScript"
+    return "Python 3.12"
+
+
+def _decode_source(data: bytes) -> str:
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError as error:
-        raise ValueError("Upload must be a valid ZIP or UTF-8 Python source file") from error
+        raise ValueError("Upload must be a valid ZIP or UTF-8 source file") from error
 
 
-def _add_python_source(
+def _add_source(
     result: dict[str, str],
     path: str,
     data: bytes,
@@ -157,12 +254,12 @@ def _add_python_source(
 ) -> int:
     normalized_path = safe_upload_path(path)
     _register_upload_path(seen_path_keys, normalized_path)
-    if len(result) >= MAX_PYTHON_FILES:
-        raise ValueError("Upload exceeds 500 Python files")
+    if len(result) >= MAX_SOURCE_FILES:
+        raise ValueError("Upload exceeds 500 source files")
     total_bytes += len(data)
     if total_bytes > MAX_SOURCE_BYTES:
         raise ValueError("Upload exceeds the 10 MB extracted source limit")
-    result[normalized_path] = _decode_python_source(data)
+    result[normalized_path] = _decode_source(data)
     return total_bytes
 
 
@@ -179,7 +276,7 @@ def _extract_zip(
             declared_bytes = 0
             archive_path_keys: set[str] = set()
             for item in archive.infolist():
-                if item.is_dir() or not item.filename.lower().endswith(".py"):
+                if item.is_dir() or not is_supported_source_path(item.filename):
                     continue
                 path = safe_upload_path(item.filename)
                 path_key = _portable_upload_path_key(path)
@@ -192,8 +289,8 @@ def _extract_zip(
                 archive_path_keys.add(path_key)
                 entries.append((item, path))
                 declared_bytes += item.file_size
-                if len(result) + len(entries) > MAX_PYTHON_FILES:
-                    raise ValueError("Upload exceeds 500 Python files")
+                if len(result) + len(entries) > MAX_SOURCE_FILES:
+                    raise ValueError("Upload exceeds 500 source files")
                 if total_bytes + declared_bytes > MAX_SOURCE_BYTES:
                     raise ValueError("Upload exceeds the 10 MB extracted source limit")
 
@@ -208,14 +305,14 @@ def _extract_zip(
                         chunks.append(chunk)
                 if actual_size != item.file_size:
                     raise ValueError(f"Invalid ZIP size metadata: {path}")
-                total_bytes = _add_python_source(result, path, b"".join(chunks), total_bytes, seen_path_keys)
+                total_bytes = _add_source(result, path, b"".join(chunks), total_bytes, seen_path_keys)
     except (zipfile.BadZipFile, NotImplementedError, RuntimeError) as error:
         raise ValueError(f"{filename} must be a valid ZIP archive") from error
     return total_bytes
 
 
-def extract_python_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
-    """Validate and combine one ZIP or one-or-more Python multipart uploads."""
+def extract_source_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
+    """Validate and combine one ZIP or one-or-more supported source files."""
     if not uploads:
         return {}
     if sum(len(data) for _, data in uploads) > MAX_UPLOAD_BYTES:
@@ -223,9 +320,9 @@ def extract_python_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
 
     zip_count = sum(filename.lower().endswith(".zip") for filename, _ in uploads)
     if zip_count and (zip_count != 1 or len(uploads) != 1):
-        raise ValueError("Upload one ZIP file or one or more .py files")
-    if any(not filename.lower().endswith((".py", ".zip")) for filename, _ in uploads):
-        raise ValueError("Only .py or .zip uploads are supported")
+        raise ValueError("Upload one ZIP file or one or more source files")
+    if any(not (filename.lower().endswith(".zip") or is_supported_source_path(filename)) for filename, _ in uploads):
+        raise ValueError("Unsupported source file type")
 
     result: dict[str, str] = {}
     seen_path_keys: set[str] = set()
@@ -234,13 +331,18 @@ def extract_python_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
         if filename.lower().endswith(".zip"):
             total_bytes = _extract_zip(filename, data, result, total_bytes, seen_path_keys)
         else:
-            total_bytes = _add_python_source(result, filename, data, total_bytes, seen_path_keys)
+            total_bytes = _add_source(result, filename, data, total_bytes, seen_path_keys)
     return result
+
+
+def extract_python_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
+    """Backward-compatible alias; now accepts supported Python and web source files."""
+    return extract_source_uploads(uploads)
 
 
 def extract_python_files(filename: str, data: bytes) -> dict[str, str]:
     """Backward-compatible helper for callers that upload one file."""
-    return extract_python_uploads([(filename, data)])
+    return extract_source_uploads([(filename, data)])
 
 
 def next_version(project: Project) -> str:
@@ -291,6 +393,7 @@ def replace_project_files(db: Session, project: Project, files: dict[str, str]) 
         _register_upload_path(seen_path_keys, normalized_path)
         normalized_files[normalized_path] = content
     files = normalized_files
+    project.language = detect_project_language(files)
     _lock_project(db, project)
     create_snapshot(
         db, project, created_by=project.owner_id,
@@ -525,9 +628,9 @@ def apply_accepted_fixes(db: Session, project: Project) -> int:
             previous_start = start
         candidate = "".join(lines)
         try:
-            compile(candidate, source_file.path, "exec")
-        except SyntaxError as error:
-            raise ValueError(f"Patch rejected: {source_file.path}:{error.lineno}: {error.msg}") from error
+            validate_source_syntax(source_file.path, candidate)
+        except ValueError as error:
+            raise ValueError(f"Patch rejected: {source_file.path}: {error}") from error
         changes[file_id] = (source_file, candidate)
     create_snapshot(db, project, created_by=project.owner_id)
     new_version = next_version(project)

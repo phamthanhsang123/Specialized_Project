@@ -256,6 +256,26 @@ def test_upload_accepts_multiple_python_files_and_preserves_relative_paths(auth_
     ).json()["content"] == "def add(a, b):\n    return a + b\n"
 
 
+def test_upload_accepts_javascript_project_and_detects_language(auth_api):
+    client, _, _ = auth_api
+    _, headers = authenticate(client)
+    response = client.post(
+        "/api/projects/alice-project/upload",
+        headers=headers,
+        files=[
+            ("file", ("package.json", b'{"scripts":{"dev":"vite"}}', "application/json")),
+            ("file", ("src/main.js", b"document.body.textContent = 'Sentinel';\n", "text/javascript")),
+            ("file", ("src/style.css", b"body { color: #17315f; }\n", "text/css")),
+        ],
+    )
+    assert response.status_code == 200, response.text
+    assert [item["path"] for item in response.json()["files"]] == [
+        "package.json", "src/main.js", "src/style.css",
+    ]
+    project = client.get("/api/projects/alice-project", headers=headers).json()
+    assert project["language"] == "JavaScript"
+
+
 def test_upload_keeps_legacy_single_upload_field(auth_api):
     client, _, _ = auth_api
     _, headers = authenticate(client)
@@ -289,7 +309,7 @@ def test_upload_keeps_legacy_single_upload_field(auth_api):
         ([
             ("file", ("good.py", b"value = 1\n", "text/x-python")),
             ("file", ("README.txt", b"not Python", "text/plain")),
-        ], "Only .py or .zip"),
+        ], "Unsupported source file type"),
         ([
             ("file", ("good.py", b"value = 1\n", "text/x-python")),
             ("file", ("broken.py", b"\xff", "text/x-python")),
@@ -336,7 +356,7 @@ def test_upload_rejects_empty_request_and_aggregate_raw_size(auth_api):
         files={"file": ("empty.zip", empty_zip.getvalue(), "application/zip")},
     )
     assert response.status_code == 400, response.text
-    assert "does not contain Python files" in response.json()["detail"]
+    assert "does not contain supported source files" in response.json()["detail"]
 
     half_plus_one = MAX_UPLOAD_BYTES // 2 + 1
     response = client.post(
@@ -410,7 +430,7 @@ def test_upload_rejects_zip_bomb_and_too_many_python_files_atomically(auth_api):
         files={"file": ("too-many.zip", too_many.getvalue(), "application/zip")},
     )
     assert response.status_code == 400, response.text
-    assert "500 Python files" in response.json()["detail"]
+    assert "500 source files" in response.json()["detail"]
     assert client.get("/api/projects/alice-project/files", headers=headers).json() == []
     assert client.get("/api/projects/alice-project", headers=headers).json()["version"] == "v1"
 
@@ -471,7 +491,7 @@ def test_upload_rejects_more_than_500_multipart_files_atomically(auth_api):
         ],
     )
     assert response.status_code == 400, response.text
-    assert "500 Python files" in response.json()["detail"]
+    assert "500 source files" in response.json()["detail"]
     assert client.get("/api/projects/alice-project", headers=headers).json()["version"] == version
     listed = client.get("/api/projects/alice-project/files", headers=headers).json()
     assert [item["path"] for item in listed] == ["existing.py"]

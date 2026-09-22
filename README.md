@@ -1,4 +1,4 @@
-# Sentinel — phân tích, review và kiểm thử Python
+# Sentinel — phân tích, review và kiểm thử mã nguồn
 
 Next.js + FastAPI + SQLAlchemy. Giao diện Developer và Admin dùng API và database; không dùng dữ liệu mẫu trong luồng chạy.
 
@@ -26,17 +26,17 @@ Mở [http://localhost:3000](http://localhost:3000). API docs: [http://localhost
 
 Backend `.env.example` bật chế độ demo **có đăng nhập thật**:
 
-| Vai trò | Email | Mật khẩu demo |
-|---|---|---|
-| Admin | admin@sentinel.local | password |
-| Developer | developer@sentinel.local | password |
+| Vai trò   | Email                    | Mật khẩu demo |
+| --------- | ------------------------ | ------------- |
+| Admin     | admin@sentinel.local     | password      |
+| Developer | developer@sentinel.local | password      |
 
 Seed chỉ tạo tài khoản chưa tồn tại, không đặt lại mật khẩu. `SEED_DEMO_DATA=false` tắt tài khoản demo; dùng `BOOTSTRAP_ADMIN_EMAIL` và `BOOTSTRAP_ADMIN_PASSWORD` để tạo Admin đầu tiên. Admin tạo Developer qua giao diện. Token được lưu dạng hash, hết hạn sau 24 giờ mặc định; đăng xuất/khóa tài khoản thu hồi token. Developer chỉ truy cập project của mình, Admin xem toàn hệ thống.
 
 ## Luồng sử dụng
 
 1. Đăng nhập Developer, tạo/chọn project.
-2. Chọn một/nhiều tệp `.py`, chọn cả thư mục source, hoặc tải `.zip` (tổng tối đa 10 MB và 500 file Python). Đường dẫn thư mục được giữ nguyên; backend lưu source và tạo phiên bản mới cho mỗi lần tải.
+2. Chọn mã nguồn Python/JavaScript/TypeScript, cả thư mục source, hoặc tải `.zip` (tổng tối đa 10 MB và 500 tệp). Đường dẫn thư mục được giữ nguyên; `node_modules`, `.git` và thư mục build bị bỏ qua. Backend tự nhận diện ngôn ngữ, lưu source và tạo phiên bản mới cho mỗi lần tải.
 3. Chọn **phân tích tĩnh** hoặc **AI** rồi quét; chọn issue để xem vị trí, giải thích và diff.
 4. Duyệt Accept/Reject, bấm Apply. Chỉ patch được chấp nhận, còn khớp source và hợp lệ cú pháp mới được áp dụng. Source thay đổi thì quét/duyệt lại.
 5. Thêm pytest hoặc sinh test AI khi đã cấu hình. Đọc/chỉnh test trước khi chạy.
@@ -44,7 +44,7 @@ Seed chỉ tạo tài khoản chưa tồn tại, không đặt lại mật khẩ
 7. Khi cấu hình Daytona, mở **Kiểm thử → Xem trước giao diện** để chạy phiên bản trước và sau trong hai sandbox riêng.
 8. Có thể đổi tên, chuyển project vào thùng rác, khôi phục hoặc xóa vĩnh viễn project thuộc sở hữu của mình.
 
-Bạn không cần nén lại source sau mỗi lần sửa. Bấm **Tải thư mục**, chọn thư mục project hiện tại rồi xác nhận; trình duyệt sẽ gửi các tệp `.py` và giữ đường dẫn thư mục con. Vì giới hạn bảo mật của trình duyệt, khi muốn đồng bộ thay đổi mới bạn cần chọn lại thư mục; mỗi lần tải sẽ thay source hiện tại và vẫn giữ phiên bản cũ để rollback.
+Bạn không cần nén lại source sau mỗi lần sửa. Bấm **Tải thư mục**, chọn thư mục project hiện tại rồi xác nhận; trình duyệt sẽ gửi các tệp source được hỗ trợ và giữ đường dẫn thư mục con. Vì giới hạn bảo mật của trình duyệt, khi muốn đồng bộ thay đổi mới bạn cần chọn lại thư mục; mỗi lần tải sẽ thay source hiện tại và vẫn giữ phiên bản cũ để rollback.
 
 Phân tích tĩnh dùng Python AST và quy tắc giới hạn, không gọi LLM hay tự đặt độ tin cậy. SQL chưa đủ ngữ cảnh chỉ có finding, không tự tạo patch. Compile chỉ kiểm tra cú pháp; vẫn cần review và kiểm thử để xác định hành vi.
 
@@ -74,7 +74,7 @@ PREVIEW_TTL_MINUTES=30
 
 Tab **Kiểm thử → Xem trước giao diện** nhận runtime, lệnh cài đặt, lệnh chạy và cổng web. Backend tải snapshot phiên bản trước cùng source hiện tại vào hai Daytona sandbox độc lập, khởi động ứng dụng và trả URL ký tạm thời để hiển thị cạnh nhau. JavaScript, TypeScript và Python đều có preset; có thể sửa lệnh theo framework thực tế.
 
-Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem trước** xóa ngay hai sandbox. API key chỉ nằm ở backend; mã nguồn chỉ được gửi tới Daytona khi người dùng bấm chạy xem trước. Phiên bản hiện tại chỉ lưu tệp Python, nên hỗ trợ tải và phân tích JavaScript đầy đủ là bước mở rộng tiếp theo.
+Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem trước** xóa ngay hai sandbox. API key chỉ nằm ở backend; mã nguồn chỉ được gửi tới Daytona khi người dùng bấm chạy xem trước. Hệ thống lưu project Python, JavaScript và TypeScript; quét AI đọc các loại source này. Patch tự động được kiểm tra cú pháp cho Python và JavaScript thuần, còn TypeScript/JSX hiện chỉ trả finding để người dùng sửa thủ công.
 
 ## AI tùy chọn
 

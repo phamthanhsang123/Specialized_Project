@@ -503,5 +503,12 @@
   "Chỉ khi bấm chạy, mã nguồn hai phiên bản mới được gửi tới Daytona. Mỗi bản xem trước tự hết hạn sau {{count}} phút.": "The two source versions are sent to Daytona only after you run them. Each preview expires after {{count}} minutes.",
   "Trước khi sửa": "Before the fix",
   "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.": "There is no earlier version to compare. Apply at least one fix first.",
-  "Sau khi sửa": "After the fix"
+  "Sau khi sửa": "After the fix",
+  "Chỉ hỗ trợ mã nguồn Python, JavaScript, TypeScript hoặc ZIP.": "Only Python, JavaScript, TypeScript source files or ZIP archives are supported.",
+  "Không thể tải ZIP cùng các tệp khác. Hãy chọn một ZIP hoặc nhiều tệp mã nguồn.": "Choose one ZIP archive or multiple source files, not both.",
+  "{{v0}} tệp mã nguồn": "{{v0}} source files",
+  "Thư mục này không có mã nguồn được hỗ trợ để tải lên.": "This folder has no supported source files.",
+  "Tải một hoặc nhiều tệp mã nguồn, hoặc một tệp ZIP": "Upload one or more source files, or one ZIP archive",
+  "Tải toàn bộ thư mục mã nguồn được hỗ trợ": "Upload the supported source files in a folder",
+  "Tải mã nguồn Python, JavaScript, TypeScript, ZIP hoặc cả thư mục để bắt đầu.": "Upload Python, JavaScript or TypeScript source, a ZIP archive, or a folder to begin."
 }

@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from app.database import Base
 from app.models import CodeVersion, FixProposal, Issue, Project, ReviewHistory, SourceFile, ensure_schema_compatibility
 from app.services.source import (
-    apply_accepted_fixes, create_snapshot, extract_python_files, issue_to_out,
+    apply_accepted_fixes, create_snapshot, detect_project_language, extract_python_files, issue_to_out,
     replace_project_files, review_issue, rollback_project, scan_file, scan_project,
+    validate_source_syntax,
 )
 
 
@@ -243,6 +244,20 @@ def test_upload_rejects_bad_zip_and_invalid_encoding():
         archive.writestr("nested/../bad.py", "pass")
     with pytest.raises(ValueError, match="Invalid upload path"):
         extract_python_files("bad.zip", content.getvalue())
+
+
+def test_javascript_syntax_validation_does_not_execute_source():
+    validate_source_syntax("src/main.js", "export const answer = 42;\n")
+    with pytest.raises(ValueError, match="sai cú pháp"):
+        validate_source_syntax("src/main.js", "export const = ;\n")
+    with pytest.raises(ValueError, match="chỉ hỗ trợ"):
+        validate_source_syntax("src/main.ts", "const answer: number = 42;\n")
+
+
+def test_project_language_detection_covers_web_projects():
+    assert detect_project_language({"package.json": "{}", "index.html": ""}) == "JavaScript"
+    assert detect_project_language({"tsconfig.json": "{}", "src/main.tsx": ""}) == "TypeScript"
+    assert detect_project_language({"app.py": "print('ok')\n"}) == "Python 3.12"
 
 
 @pytest.mark.parametrize(

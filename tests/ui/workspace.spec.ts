@@ -331,7 +331,7 @@ test("test comparison and save test use backend data; admin and login fit mobile
 test("web preview sends runtime settings and shows before and after", async ({
   page,
 }) => {
-  const result = await workspace(page);
+  const result = await workspace(page, "developer", "JavaScript");
   await page.route("**/api/capabilities", (route) =>
     route.fulfill({
       json: {
@@ -401,6 +401,7 @@ test("web preview sends runtime settings and shows before and after", async ({
   await expect(
     page.getByRole("link", { name: "Mở toàn màn hình" }),
   ).toHaveCount(2);
+  await expect(page.getByText("Nếu Daytona hiện cảnh báo")).toBeVisible();
   await page.screenshot({
     path: "test-results/preview-comparison.png",
     fullPage: true,
@@ -408,6 +409,31 @@ test("web preview sends runtime settings and shows before and after", async ({
   await page.getByRole("button", { name: "Dừng bản xem trước" }).click();
   await expect(page.locator(".preview-frame-card")).toHaveCount(0);
   expect(stopped).toBe(true);
+  expect(result.errors).toEqual([]);
+});
+
+test("JavaScript opens interface preview instead of pytest", async ({
+  page,
+}) => {
+  const result = await workspace(page, "developer", "JavaScript");
+  await page.goto("/");
+  await page.locator(".project-card").click();
+  await page
+    .locator(".workflow-tabs")
+    .getByRole("button", { name: /Kiểm thử/ })
+    .click();
+
+  await expect(
+    page.getByRole("tab", { name: /Xem trước giao diện/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("button", { name: "Chạy kiểm thử", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: /Quản lý trường hợp kiểm thử/ }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Kiểm tra dự án web")).toBeVisible();
+  await expect(page.getByLabel("Môi trường chạy")).toHaveValue("javascript");
   expect(result.errors).toEqual([]);
 });
 
@@ -497,7 +523,11 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
 });
 
 // API fixtures are intercepted: UI tests never overwrite the user's projects.
-async function workspace(page: Page, role = "developer") {
+async function workspace(
+  page: Page,
+  role = "developer",
+  language = "Python 3.12",
+) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() =>
@@ -514,7 +544,7 @@ async function workspace(page: Page, role = "developer") {
   const project = {
     id: "p1",
     name: "Payment API",
-    language: "Python 3.12",
+    language,
     version: "v1",
     lastScannedVersion: "v1",
     sourceFileCount: 1,

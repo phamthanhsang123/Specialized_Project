@@ -136,7 +136,7 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
                   "Quản lý tài khoản, project và hoạt động từ dữ liệu hệ thống.",
                 )
               : t(
-                  "Phân tích, duyệt đề xuất sửa và kiểm thử mã Python theo từng phiên bản.",
+                  "Phân tích, duyệt đề xuất sửa và kiểm tra mã nguồn theo từng phiên bản.",
                 )}
           </span>
         </div>
@@ -213,21 +213,25 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
             disabled={busy}
             onClick={quickLogin}
           >
-            {busy
-              ? quickThinking
-                ? <span className="login-thinking" role="status">
-                    <span className="thinking-spinner" aria-hidden="true" />
-                    <span>{t("Đang suy nghĩ…")}</span>
-                    <span className="thinking-dots" aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
+            {busy ? (
+              quickThinking ? (
+                <span className="login-thinking" role="status">
+                  <span className="thinking-spinner" aria-hidden="true" />
+                  <span>{t("Đang suy nghĩ…")}</span>
+                  <span className="thinking-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
                   </span>
-                : t("Đang xác thực…")
-              : admin
-                ? t("Vào nhanh bằng tài khoản quản trị mẫu")
-                : t("Vào nhanh bằng tài khoản lập trình viên mẫu")}
+                </span>
+              ) : (
+                t("Đang xác thực…")
+              )
+            ) : admin ? (
+              t("Vào nhanh bằng tài khoản quản trị mẫu")
+            ) : (
+              t("Vào nhanh bằng tài khoản lập trình viên mẫu")
+            )}
           </button>
           {message && (
             <p className="login-message error-text" role="alert">

@@ -339,6 +339,8 @@ export default function Home() {
   const selectedIssueKey = selectedIssue?.id ?? "";
   const loadedProjectId = data?.project.id ?? "";
   const sourceVersion = data?.project.version ?? "";
+  const isPythonProject =
+    data?.project.language.toLocaleLowerCase().includes("python") ?? true;
   const selectedProposal =
     proposal?.issueId === selectedIssue?.id ? proposal : null;
   const counts = useMemo(
@@ -554,8 +556,10 @@ export default function Home() {
     if (!language) return;
     if (language.includes("typescript")) {
       selectPreviewRuntime("typescript");
+      setTestSection("preview");
     } else if (language.includes("javascript")) {
       selectPreviewRuntime("javascript");
+      setTestSection("preview");
     } else {
       selectPreviewRuntime("python");
     }
@@ -1514,7 +1518,7 @@ export default function Home() {
                 <h1>{t("Dự án của tôi")}</h1>
                 <p>
                   {t(
-                    "Chọn dự án để tiếp tục, hoặc tạo dự án mới để phân tích mã Python.",
+                    "Chọn dự án để tiếp tục, hoặc tạo dự án mới để phân tích mã nguồn.",
                   )}
                 </p>
               </div>
@@ -1570,7 +1574,7 @@ export default function Home() {
                 <h2>{t("Tạo dự án đầu tiên")}</h2>
                 <p>
                   {t(
-                    "Tải mã nguồn Python, phân tích vấn đề và duyệt bản sửa trong một quy trình rõ ràng.",
+                    "Tải mã nguồn, phân tích vấn đề và duyệt bản sửa trong một quy trình rõ ràng.",
                   )}
                 </p>
                 <button
@@ -2246,7 +2250,9 @@ export default function Home() {
                               ).then((ok) => {
                                 if (ok) {
                                   setPreviewComparison(null);
-                                  setTestSection("results");
+                                  setTestSection(
+                                    isPythonProject ? "results" : "preview",
+                                  );
                                   setActiveNav("testing");
                                 }
                               })
@@ -2269,62 +2275,83 @@ export default function Home() {
                           <b>{t("Kiểm thử & xác minh")}</b>
                           <small>{t("Kết quả thực thi từ backend")}</small>
                         </div>
-                        <button
-                          className="run-button"
-                          disabled={disabled || !data.files.length}
-                          onClick={() =>
-                            void performAction(
-                              "Đang chạy test trong sandbox…",
-                              (id, signal) =>
-                                apiFetch(`/projects/${id}/test`, {
-                                  signal,
-                                  method: "POST",
-                                }),
-                              "Đã nhận kết quả kiểm thử. Xem trạng thái và log bên dưới.",
-                              "testing",
-                            ).then((ok) => {
-                              if (ok) setTestSection("results");
-                            })
-                          }
-                        >
-                          <Icon name="play" size={14} />
-                          {t("Chạy test")}
-                        </button>
+                        {isPythonProject ? (
+                          <button
+                            className="run-button"
+                            disabled={disabled || !data.files.length}
+                            onClick={() =>
+                              void performAction(
+                                "Đang chạy test trong sandbox…",
+                                (id, signal) =>
+                                  apiFetch(`/projects/${id}/test`, {
+                                    signal,
+                                    method: "POST",
+                                  }),
+                                "Đã nhận kết quả kiểm thử. Xem trạng thái và log bên dưới.",
+                                "testing",
+                              ).then((ok) => {
+                                if (ok) setTestSection("results");
+                              })
+                            }
+                          >
+                            <Icon name="play" size={14} />
+                            {t("Chạy test")}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="run-button"
+                            onClick={() => {
+                              setError("");
+                              setTestSection("preview");
+                            }}
+                          >
+                            <Icon name="play" size={14} />
+                            {t("Mở xem trước giao diện")}
+                          </button>
+                        )}
                       </div>
                       <div
                         className="test-subtabs"
                         role="tablist"
                         aria-label={t("Nội dung kiểm thử")}
                       >
-                        <button
-                          type="button"
-                          role="tab"
-                          aria-selected={testSection === "results"}
-                          onClick={() => setTestSection("results")}
-                        >
-                          {t("Kết quả kiểm thử")}
-                          <b>{data.tests.length}</b>
-                        </button>
-                        <button
-                          type="button"
-                          role="tab"
-                          aria-selected={testSection === "cases"}
-                          onClick={() => setTestSection("cases")}
-                        >
-                          {t("Quản lý test case")}
-                          <b>{data.testCases.length}</b>
-                        </button>
+                        {isPythonProject && (
+                          <>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={testSection === "results"}
+                              onClick={() => setTestSection("results")}
+                            >
+                              {t("Kết quả kiểm thử")}
+                              <b>{data.tests.length}</b>
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={testSection === "cases"}
+                              onClick={() => setTestSection("cases")}
+                            >
+                              {t("Quản lý test case")}
+                              <b>{data.testCases.length}</b>
+                            </button>
+                          </>
+                        )}
                         <button
                           type="button"
                           role="tab"
                           aria-selected={testSection === "preview"}
-                          onClick={() => setTestSection("preview")}
+                          onClick={() => {
+                            setError("");
+                            setTestSection("preview");
+                          }}
                         >
                           {t("Xem trước giao diện")}
                           <b>{previewComparison ? 1 : 0}</b>
                         </button>
                       </div>
-                      {testSection === "results" && (
+                      {isPythonProject && testSection === "results" && (
                         <div className="test-results-section">
                           <TestComparison runs={data.tests} />
                           {data.tests.map((run) => (
@@ -2376,7 +2403,7 @@ export default function Home() {
                           </p>
                         </div>
                       )}
-                      {testSection === "cases" && (
+                      {isPythonProject && testSection === "cases" && (
                         <form className="test-case-form" onSubmit={saveTest}>
                           <h3>
                             {t("Bộ test pytest")}
@@ -2514,6 +2541,19 @@ export default function Home() {
                               </div>
                             </div>
                           )}
+                          {!isPythonProject && (
+                            <div className="preview-config-note" role="status">
+                              <Icon name="info" size={18} />
+                              <div>
+                                <b>{t("Kiểm tra dự án web")}</b>
+                                <p>
+                                  {t(
+                                    "Pytest chỉ dùng cho dự án Python. Với JavaScript hoặc TypeScript, hãy chạy giao diện để kiểm tra trực tiếp trước và sau khi sửa.",
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <form
                             className="preview-settings"
                             onSubmit={createPreview}
@@ -2606,19 +2646,35 @@ export default function Home() {
                             </div>
                           )}
                           {previewComparison && (
-                            <div className="preview-comparison">
-                              <PreviewFrame
-                                title={t("Trước khi sửa")}
-                                target={previewComparison.before}
-                                emptyText={t(
-                                  "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.",
-                                )}
-                              />
-                              <PreviewFrame
-                                title={t("Sau khi sửa")}
-                                target={previewComparison.after}
-                              />
-                            </div>
+                            <>
+                              <div
+                                className="preview-config-note"
+                                role="status"
+                              >
+                                <Icon name="info" size={18} />
+                                <div>
+                                  <b>{t("Nếu Daytona hiện cảnh báo")}</b>
+                                  <p>
+                                    {t(
+                                      "Bấm Mở toàn màn hình, sau đó chọn Continue to Preview. Daytona sẽ ghi nhớ xác nhận trong một khoảng thời gian.",
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="preview-comparison">
+                                <PreviewFrame
+                                  title={t("Trước khi sửa")}
+                                  target={previewComparison.before}
+                                  emptyText={t(
+                                    "Chưa có phiên bản cũ để so sánh. Hãy áp dụng ít nhất một bản sửa.",
+                                  )}
+                                />
+                                <PreviewFrame
+                                  title={t("Sau khi sửa")}
+                                  target={previewComparison.after}
+                                />
+                              </div>
+                            </>
                           )}
                         </div>
                       )}
@@ -2834,7 +2890,7 @@ export default function Home() {
             >
               {t("×")}
             </button>
-            <h2 id="create-project-title">{t("Tạo project Python")}</h2>
+            <h2 id="create-project-title">{t("Tạo dự án mới")}</h2>
             <label>
               {t("Tên project")}
               <input
@@ -2889,7 +2945,7 @@ export default function Home() {
               {t("Đã chọn")} {showUpload.items.length} {t("tệp (")}
               {formatBytes(showUpload.totalBytes)}).{" "}
               {showUpload.ignoredCount > 0
-                ? t("Đã bỏ qua {{v0}} tệp không phải Python.", {
+                ? t("Đã bỏ qua {{v0}} tệp không được hỗ trợ.", {
                     v0: showUpload.ignoredCount,
                   })
                 : ""}

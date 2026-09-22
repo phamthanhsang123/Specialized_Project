@@ -39,7 +39,7 @@ Seed chỉ tạo tài khoản chưa tồn tại, không đặt lại mật khẩ
 2. Chọn mã nguồn Python/JavaScript/TypeScript, cả thư mục source, hoặc tải `.zip` (tổng tối đa 10 MB và 500 tệp). Đường dẫn thư mục được giữ nguyên; `node_modules`, `.git` và thư mục build bị bỏ qua. Backend tự nhận diện ngôn ngữ, lưu source và tạo phiên bản mới cho mỗi lần tải.
 3. Chọn **phân tích tĩnh** hoặc **AI** rồi quét; chọn issue để xem vị trí, giải thích và diff.
 4. Duyệt Accept/Reject, bấm Apply. Chỉ patch được chấp nhận, còn khớp source và hợp lệ cú pháp mới được áp dụng. Source thay đổi thì quét/duyệt lại.
-5. Thêm pytest hoặc sinh test AI khi đã cấu hình. Đọc/chỉnh test trước khi chạy.
+5. Với dự án Python, thêm pytest hoặc sinh test AI khi đã cấu hình rồi đọc/chỉnh test trước khi chạy. Với JavaScript/TypeScript, dùng **Xem trước giao diện** để chạy và so sánh trực tiếp.
 6. Chạy test trước/sau bản sửa; xem log thực tế. Rollback tạo một phiên bản mới chứa source được khôi phục.
 7. Khi cấu hình Daytona, mở **Kiểm thử → Xem trước giao diện** để chạy phiên bản trước và sau trong hai sandbox riêng.
 8. Có thể đổi tên, chuyển project vào thùng rác, khôi phục hoặc xóa vĩnh viễn project thuộc sở hữu của mình.
@@ -72,7 +72,7 @@ DAYTONA_API_URL=https://app.daytona.io/api
 PREVIEW_TTL_MINUTES=30
 ```
 
-Tab **Kiểm thử → Xem trước giao diện** nhận runtime, lệnh cài đặt, lệnh chạy và cổng web. Backend tải snapshot phiên bản trước cùng source hiện tại vào hai Daytona sandbox độc lập, khởi động ứng dụng và trả URL ký tạm thời để hiển thị cạnh nhau. JavaScript, TypeScript và Python đều có preset; có thể sửa lệnh theo framework thực tế.
+Tab **Kiểm thử → Xem trước giao diện** nhận runtime, lệnh cài đặt, lệnh chạy và cổng web. Backend tải snapshot phiên bản trước cùng source hiện tại vào hai Daytona sandbox độc lập, khởi động ứng dụng và trả URL ký tạm thời để hiển thị cạnh nhau. JavaScript, TypeScript và Python đều có preset; có thể sửa lệnh theo framework thực tế. Nếu Daytona hiện trang `Preview URL Warning`, mở bản xem trước toàn màn hình và chọn **Continue to Preview** trước khi xem trong khung so sánh.
 
 Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem trước** xóa ngay hai sandbox. API key chỉ nằm ở backend; mã nguồn chỉ được gửi tới Daytona khi người dùng bấm chạy xem trước. Hệ thống lưu project Python, JavaScript và TypeScript; quét AI đọc các loại source này. Patch tự động được kiểm tra cú pháp cho Python và JavaScript thuần, còn TypeScript/JSX hiện chỉ trả finding để người dùng sửa thủ công.
 

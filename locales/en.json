@@ -464,7 +464,6 @@
   "Mã nguồn và kết quả phân tích vẫn được giữ lại cho đến khi bạn khôi phục dự án.": "Source code and analysis results are retained until you restore the project.",
   "Đang tải dự án đã xóa…": "Loading deleted projects…",
   "Đã xóa": "Deleted",
-  "Khôi phục": "Restore",
   "Khôi phục dự án": "Restore project",
   "Chưa có dự án nào bị xóa": "No deleted projects",
   "Các dự án đã xóa sẽ xuất hiện tại đây.": "Deleted projects will appear here.",
@@ -510,5 +509,15 @@
   "Thư mục này không có mã nguồn được hỗ trợ để tải lên.": "This folder has no supported source files.",
   "Tải một hoặc nhiều tệp mã nguồn, hoặc một tệp ZIP": "Upload one or more source files, or one ZIP archive",
   "Tải toàn bộ thư mục mã nguồn được hỗ trợ": "Upload the supported source files in a folder",
-  "Tải mã nguồn Python, JavaScript, TypeScript, ZIP hoặc cả thư mục để bắt đầu.": "Upload Python, JavaScript or TypeScript source, a ZIP archive, or a folder to begin."
+  "Tải mã nguồn Python, JavaScript, TypeScript, ZIP hoặc cả thư mục để bắt đầu.": "Upload Python, JavaScript or TypeScript source, a ZIP archive, or a folder to begin.",
+  "Chọn dự án để tiếp tục, hoặc tạo dự án mới để phân tích mã nguồn.": "Continue with a project, or create one to analyse source code.",
+  "Tải mã nguồn, phân tích vấn đề và duyệt bản sửa trong một quy trình rõ ràng.": "Upload source code, analyse issues and review fixes in a guided workflow.",
+  "Mở xem trước giao diện": "Open interface preview",
+  "Kiểm tra dự án web": "Test the web project",
+  "Pytest chỉ dùng cho dự án Python. Với JavaScript hoặc TypeScript, hãy chạy giao diện để kiểm tra trực tiếp trước và sau khi sửa.": "Pytest is available for Python projects. For JavaScript or TypeScript, run the interface to inspect it before and after the fix.",
+  "Nếu Daytona hiện cảnh báo": "If Daytona shows a warning",
+  "Bấm Mở toàn màn hình, sau đó chọn Continue to Preview. Daytona sẽ ghi nhớ xác nhận trong một khoảng thời gian.": "Click Open full screen, then choose Continue to Preview. Daytona remembers the confirmation for a period of time.",
+  "Tạo dự án mới": "Create a new project",
+  "Đã bỏ qua {{v0}} tệp không được hỗ trợ.": "Skipped {{v0}} unsupported files.",
+  "Phân tích, duyệt đề xuất sửa và kiểm tra mã nguồn theo từng phiên bản.": "Analyse source code, review proposed fixes and verify each version."
 }

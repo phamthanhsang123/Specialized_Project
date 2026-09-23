@@ -519,6 +519,21 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
     "AI đang phân tích mã nguồn",
   );
   await expect(page.locator(".source-workspace")).toBeHidden();
+  const scanViewport = await page.locator(".content").evaluate((element) => {
+    const content = element as HTMLElement;
+    content.scrollTop = 9999;
+    return {
+      clientHeight: content.clientHeight,
+      scrollHeight: content.scrollHeight,
+      scrollTop: content.scrollTop,
+      overflowY: getComputedStyle(content).overflowY,
+    };
+  });
+  expect(scanViewport.overflowY).toBe("hidden");
+  expect(scanViewport.scrollTop).toBe(0);
+  expect(scanViewport.scrollHeight).toBeLessThanOrEqual(
+    scanViewport.clientHeight + 1,
+  );
   const scanStage = await page.locator(".ai-scan-stage.scanning").boundingBox();
   expect(scanStage).not.toBeNull();
   expect(scanStage!.height).toBeLessThanOrEqual(

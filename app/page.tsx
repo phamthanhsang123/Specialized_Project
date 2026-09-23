@@ -1143,7 +1143,10 @@ export default function Home() {
 
   async function runAnalysis() {
     const useAI = analysisMode === "ai";
-    if (useAI) setAiScanPhase("scanning");
+    if (useAI) {
+      viewport.current?.scrollTo({ top: 0 });
+      setAiScanPhase("scanning");
+    }
     const succeeded = await performAction(
       "Đang quét…",
       async (id, signal) => {

@@ -1057,7 +1057,9 @@
 .workspace-v2 > .content.ai-scan-active {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  scrollbar-gutter: auto;
 }
 .workspace-v2
   > .content.ai-scan-active

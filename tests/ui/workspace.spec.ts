@@ -509,11 +509,19 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
   });
   await page.goto("/");
   await page.locator(".project-card").click();
+  await page.addStyleTag({
+    content: ".source-workspace .code-panel { height: 1800px !important; }",
+  });
   await page.getByLabel("Chế độ phân tích").selectOption("ai");
   await page.getByLabel("Nhà cung cấp AI").selectOption("openai");
   await page.getByRole("button", { name: "Quét bằng AI" }).click();
   await expect(page.locator(".ai-scan-stage.scanning")).toContainText(
     "AI đang phân tích mã nguồn",
+  );
+  const scanStage = await page.locator(".ai-scan-stage.scanning").boundingBox();
+  expect(scanStage).not.toBeNull();
+  expect(scanStage!.height).toBeLessThanOrEqual(
+    (page.viewportSize()?.height ?? 720) - 95,
   );
   await expect.poll(() => selectedProvider).toBe("openai");
   await expect(page.locator(".ai-scan-stage.success")).toContainText(

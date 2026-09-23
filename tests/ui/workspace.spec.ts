@@ -437,6 +437,50 @@ test("JavaScript opens interface preview instead of pytest", async ({
   expect(result.errors).toEqual([]);
 });
 
+test("source page fits the viewport and long code scrolls inside its panel", async ({
+  page,
+}) => {
+  const result = await workspace(page);
+  const longSource = Array.from(
+    { length: 300 },
+    (_, index) => `value_${index + 1} = ${index + 1}`,
+  ).join("\n");
+  await page.route("**/api/projects/p1/files/content*", (route) =>
+    route.fulfill({
+      json: { path: "payment.py", content: longSource },
+    }),
+  );
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/");
+  await page.locator(".project-card").click();
+  await expect(page.locator(".code-line")).toHaveCount(300);
+
+  const metrics = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>(".content");
+    const code = document.querySelector<HTMLElement>(".code-view");
+    if (!content || !code) throw new Error("Missing source layout");
+    return {
+      contentClientHeight: content.clientHeight,
+      contentScrollHeight: content.scrollHeight,
+      codeClientHeight: code.clientHeight,
+      codeScrollHeight: code.scrollHeight,
+      contentOverflowY: getComputedStyle(content).overflowY,
+      codeOverflowY: getComputedStyle(code).overflowY,
+    };
+  });
+  expect(metrics.contentOverflowY).toBe("hidden");
+  expect(metrics.contentScrollHeight).toBeLessThanOrEqual(
+    metrics.contentClientHeight + 1,
+  );
+  expect(metrics.codeOverflowY).toBe("auto");
+  expect(metrics.codeScrollHeight).toBeGreaterThan(metrics.codeClientHeight);
+  await page.screenshot({
+    path: "test-results/source-fits-viewport.png",
+    fullPage: true,
+  });
+  expect(result.errors).toEqual([]);
+});
+
 test("admin and login remain readable at mobile width", async ({ page }) => {
   await workspace(page, "admin");
   await page.setViewportSize({ width: 390, height: 844 });

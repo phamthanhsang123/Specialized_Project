@@ -1351,7 +1351,7 @@ export default function Home() {
         </div>
       </aside>
       <section
-        className={`content${aiScanPhase !== "idle" ? " ai-scan-active" : ""}`}
+        className={`content${activeNav === "source" ? " source-content" : ""}${aiScanPhase !== "idle" ? " ai-scan-active" : ""}`}
         ref={viewport}
       >
         <header
@@ -1674,7 +1674,7 @@ export default function Home() {
             {data && (
               <>
                 {activeNav === "source" && (
-                  <>
+                  <section className="source-page">
                     <div className="source-toolbar">
                       <div className="inline-actions">
                         {" "}
@@ -1882,7 +1882,7 @@ export default function Home() {
                         </div>
                       </article>
                     </section>
-                  </>
+                  </section>
                 )}
                 {activeNav === "analysis" && (
                   <>

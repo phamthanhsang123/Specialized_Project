@@ -322,7 +322,6 @@ export default function Home() {
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [capabilityError, setCapabilityError] = useState("");
   const [analysisMode, setAnalysisMode] = useState<"static" | "ai">("static");
-  const [aiProvider, setAiProvider] = useState("gemini");
   const folderInputRef = useCallback((input: HTMLInputElement | null) => {
     if (!input) return;
     input.setAttribute("webkitdirectory", "");
@@ -534,12 +533,6 @@ export default function Home() {
       .then((result) => {
         if (!controller.signal.aborted) {
           setCapabilities(result);
-          setAiProvider((current) => {
-            const remainsAvailable = result.aiProviders.some(
-              (provider) => provider.id === current && provider.configured,
-            );
-            return remainsAvailable ? current : result.defaultAiProvider || "";
-          });
         }
       })
       .catch((failure: unknown) => {
@@ -1151,7 +1144,7 @@ export default function Home() {
       "Đang quét…",
       async (id, signal) => {
         const request = apiFetch(
-          `/projects/${id}/${useAI ? `ai-scan${aiProvider ? `?provider=${encodeURIComponent(aiProvider)}` : ""}` : "scan"}`,
+          `/projects/${id}/${useAI ? "ai-scan" : "scan"}`,
           { signal, method: "POST" },
         );
         if (useAI) await Promise.all([request, wait(AI_SCAN_MINIMUM_MS)]);
@@ -1738,34 +1731,6 @@ export default function Home() {
                           </option>
                         </select>
                       </label>
-                      {analysisMode === "ai" && (
-                        <label>
-                          {t("Nhà cung cấp AI")}
-                          <select
-                            value={aiProvider}
-                            disabled={disabled || !capabilities?.aiConfigured}
-                            onChange={(event) =>
-                              setAiProvider(event.target.value)
-                            }
-                          >
-                            {capabilities?.aiProviders.map((provider) => (
-                              <option
-                                key={provider.id}
-                                value={provider.id}
-                                disabled={!provider.configured}
-                              >
-                                {provider.name} · {provider.model}
-                                {provider.freeTier
-                                  ? ` · ${t("có gói miễn phí")}`
-                                  : ""}
-                                {!provider.configured
-                                  ? ` · ${t("chưa cấu hình")}`
-                                  : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
                       <p className="engine-note">
                         {capabilities?.aiConfigured
                           ? t(
@@ -2102,7 +2067,7 @@ export default function Home() {
                                             "Đang tạo đề xuất bằng AI…",
                                             (id, signal) =>
                                               apiFetch(
-                                                `/issues/${encodeURIComponent(selectedIssue.id)}/ai-proposal${aiProvider ? `?provider=${encodeURIComponent(aiProvider)}` : ""}`,
+                                                `/issues/${encodeURIComponent(selectedIssue.id)}/ai-proposal`,
                                                 { signal, method: "POST" },
                                               ),
                                             "Đã nhận đề xuất AI. Review diff và chạy test sau khi áp dụng.",
@@ -2388,7 +2353,6 @@ export default function Home() {
                                     <TestExplanation
                                       projectId={projectId}
                                       runId={run.id}
-                                      provider={aiProvider}
                                     />
                                   )}
                                 </details>
@@ -2430,7 +2394,7 @@ export default function Home() {
                                     "Đang sinh test bằng AI…",
                                     (id, signal) =>
                                       apiFetch(
-                                        `/projects/${id}/test-cases/generate${aiProvider ? `?provider=${encodeURIComponent(aiProvider)}` : ""}`,
+                                        `/projects/${id}/test-cases/generate`,
                                         { signal, method: "POST" },
                                       ),
                                     "Đã lưu các test do AI tạo. Kiểm tra nội dung trước khi chạy.",

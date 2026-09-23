@@ -515,11 +515,9 @@ test("admin and login remain readable at mobile width", async ({ page }) => {
   });
 });
 
-test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", async ({
-  page,
-}) => {
+test("quét AI dùng nhà cung cấp mặc định của backend", async ({ page }) => {
   await workspace(page);
-  let selectedProvider = "";
+  let requestedProvider: string | null = null;
   await page.route("**/api/capabilities", (route) =>
     route.fulfill({
       json: {
@@ -547,8 +545,9 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
     }),
   );
   await page.route("**/api/projects/p1/ai-scan*", (route) => {
-    selectedProvider =
-      new URL(route.request().url()).searchParams.get("provider") || "";
+    requestedProvider = new URL(route.request().url()).searchParams.get(
+      "provider",
+    );
     return route.fulfill({ json: { projectId: "p1", issues: [] } });
   });
   await page.goto("/");
@@ -557,8 +556,7 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
     content: ".source-workspace .code-panel { height: 1800px !important; }",
   });
   await page.getByLabel("Chế độ phân tích").selectOption("ai");
-  await expect(page.getByLabel("Nhà cung cấp AI")).toHaveValue("gemini");
-  await page.getByLabel("Nhà cung cấp AI").selectOption("openai");
+  await expect(page.getByLabel("Nhà cung cấp AI")).toHaveCount(0);
   await page.getByRole("button", { name: "Quét bằng AI" }).click();
   await expect(page.locator(".ai-scan-stage.scanning")).toContainText(
     "AI đang phân tích mã nguồn",
@@ -584,7 +582,7 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
   expect(scanStage!.height).toBeLessThanOrEqual(
     (page.viewportSize()?.height ?? 720) - 95,
   );
-  await expect.poll(() => selectedProvider).toBe("openai");
+  await expect.poll(() => requestedProvider).toBeNull();
   await expect(page.locator(".ai-scan-stage.success")).toContainText(
     "Phân tích hoàn tất",
   );

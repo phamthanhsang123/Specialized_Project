@@ -76,13 +76,13 @@ Tab **Kiểm thử → Xem trước giao diện** nhận runtime, lệnh cài đ
 
 Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem trước** xóa ngay hai sandbox. API key chỉ nằm ở backend; mã nguồn chỉ được gửi tới Daytona khi người dùng bấm chạy xem trước. Hệ thống lưu project Python, JavaScript và TypeScript; quét AI đọc các loại source này. Patch tự động được kiểm tra cú pháp cho Python và JavaScript thuần, còn TypeScript/JSX hiện chỉ trả finding để người dùng sửa thủ công.
 
-## AI tùy chọn
+## Cấu hình AI
 
-Website cho phép chọn Google Gemini, OpenAI hoặc xAI Grok tại thời điểm chạy. Khóa chỉ lưu trong `backend/.env`; giao diện không nhận và không hiển thị khóa. Cấu hình ít nhất một nhóm biến:
+Website tự dùng nhà cung cấp được đặt trong `AI_DEFAULT_PROVIDER`; giao diện không cho người dùng đổi nhà cung cấp. Khóa chỉ lưu trong `backend/.env`; giao diện không nhận và không hiển thị khóa. Cấu hình Gemini để dùng thiết lập mặc định hiện tại:
 
 - OpenAI: tạo khóa tại [OpenAI API Keys](https://platform.openai.com/api-keys).
 - xAI Grok: tạo khóa tại [xAI Console API Keys](https://console.x.ai/team/default/api-keys).
-- `AI_DEFAULT_PROVIDER=gemini` giữ Gemini là lựa chọn mặc định; OpenAI và Grok chỉ được gọi khi người dùng chủ động chọn chúng.
+- `AI_DEFAULT_PROVIDER=gemini` giữ Gemini là nhà cung cấp mặc định. Giao diện không hiển thị lựa chọn nhà cung cấp AI.
 
 ```dotenv
 AI_DEFAULT_PROVIDER=gemini

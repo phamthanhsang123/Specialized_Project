@@ -1347,7 +1347,10 @@ export default function Home() {
           </button>
         </div>
       </aside>
-      <section className="content" ref={viewport}>
+      <section
+        className={`content${aiScanPhase !== "idle" ? " ai-scan-active" : ""}`}
+        ref={viewport}
+      >
         <header
           className={`workspace-header${activeNav !== "projects" ? " project-header" : ""}`}
         >

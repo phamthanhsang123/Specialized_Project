@@ -518,6 +518,7 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
   await expect(page.locator(".ai-scan-stage.scanning")).toContainText(
     "AI đang phân tích mã nguồn",
   );
+  await expect(page.locator(".source-workspace")).toBeHidden();
   const scanStage = await page.locator(".ai-scan-stage.scanning").boundingBox();
   expect(scanStage).not.toBeNull();
   expect(scanStage!.height).toBeLessThanOrEqual(

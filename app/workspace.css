@@ -1054,20 +1054,32 @@
 .workspace-v2 > .content {
   position: relative;
 }
-.ai-scan-stage {
-  position: absolute;
-  z-index: 20;
-  inset: 96px 0 auto;
+.workspace-v2 > .content.ai-scan-active {
   display: flex;
-  height: calc(100dvh - 96px);
+  flex-direction: column;
+  overflow: hidden;
+}
+.workspace-v2
+  > .content.ai-scan-active
+  > :not(.workspace-header):not(.ai-scan-stage) {
+  display: none !important;
+}
+.ai-scan-stage {
+  position: relative;
+  z-index: 20;
+  inset: auto;
+  display: flex;
+  width: 100%;
+  height: auto;
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: calc(100dvh - 96px);
+  max-height: none;
   overflow: hidden;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 48px 24px 120px;
-  background: rgba(246, 248, 252, 0.97);
+  background: #f6f8fc;
   animation: ai-stage-in 0.25s ease-out;
 }
 .ai-scan-indicator {

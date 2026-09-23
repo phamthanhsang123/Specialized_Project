@@ -150,6 +150,32 @@ def test_provider_selection_uses_only_server_side_configuration(monkeypatch):
     assert 'secret' not in str(ai.provider_catalog())
 
 
+def test_gemini_is_the_default_provider(monkeypatch):
+    gemini = ai.AIProvider(
+        'gemini',
+        'Google Gemini',
+        'gemini-secret',
+        'https://gemini.invalid',
+        'gemini-test',
+        True,
+    )
+    openai = ai.AIProvider(
+        'openai',
+        'OpenAI',
+        'openai-secret',
+        'https://openai.invalid',
+        'openai-test',
+        False,
+    )
+    monkeypatch.setattr(
+        ai,
+        'get_settings',
+        lambda: type('Settings', (), {'ai_default_provider': 'gemini'})(),
+    )
+    monkeypatch.setattr(ai, 'providers', lambda: [gemini, openai])
+    assert ai.resolve_provider() == gemini
+
+
 def test_request_uses_selected_provider_endpoint_and_model(monkeypatch):
     import httpx
     provider = ai.AIProvider('gemini', 'Google Gemini', 'server-secret', 'https://gemini.invalid/openai', 'gemini-test', True)

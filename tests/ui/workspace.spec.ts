@@ -557,6 +557,7 @@ test("chọn nhà cung cấp AI được gửi đúng vào yêu cầu quét", as
     content: ".source-workspace .code-panel { height: 1800px !important; }",
   });
   await page.getByLabel("Chế độ phân tích").selectOption("ai");
+  await expect(page.getByLabel("Nhà cung cấp AI")).toHaveValue("gemini");
   await page.getByLabel("Nhà cung cấp AI").selectOption("openai");
   await page.getByRole("button", { name: "Quét bằng AI" }).click();
   await expect(page.locator(".ai-scan-stage.scanning")).toContainText(

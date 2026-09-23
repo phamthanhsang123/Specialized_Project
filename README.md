@@ -80,6 +80,10 @@ Mỗi sandbox có thời hạn và tự hết hạn. Nút **Dừng bản xem tr�
 
 Website cho phép chọn Google Gemini, OpenAI hoặc xAI Grok tại thời điểm chạy. Khóa chỉ lưu trong `backend/.env`; giao diện không nhận và không hiển thị khóa. Cấu hình ít nhất một nhóm biến:
 
+- OpenAI: tạo khóa tại [OpenAI API Keys](https://platform.openai.com/api-keys).
+- xAI Grok: tạo khóa tại [xAI Console API Keys](https://console.x.ai/team/default/api-keys).
+- `AI_DEFAULT_PROVIDER=gemini` giữ Gemini là lựa chọn mặc định; OpenAI và Grok chỉ được gọi khi người dùng chủ động chọn chúng.
+
 ```dotenv
 AI_DEFAULT_PROVIDER=gemini
 GEMINI_API_KEY=

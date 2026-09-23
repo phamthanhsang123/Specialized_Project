@@ -322,7 +322,7 @@ export default function Home() {
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [capabilityError, setCapabilityError] = useState("");
   const [analysisMode, setAnalysisMode] = useState<"static" | "ai">("static");
-  const [aiProvider, setAiProvider] = useState("");
+  const [aiProvider, setAiProvider] = useState("gemini");
   const folderInputRef = useCallback((input: HTMLInputElement | null) => {
     if (!input) return;
     input.setAttribute("webkitdirectory", "");

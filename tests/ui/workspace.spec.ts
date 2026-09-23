@@ -454,6 +454,19 @@ test("source page fits the viewport and long code scrolls inside its panel", asy
   await page.goto("/");
   await page.locator(".project-card").click();
   await expect(page.locator(".code-line")).toHaveCount(300);
+  await expect(
+    page.getByText("Kết quả phân tích sẽ xuất hiện trong Vấn đề & bản sửa."),
+  ).toHaveCount(0);
+
+  const analyzeButton = await page
+    .getByRole("button", { name: "Phân tích mã nguồn" })
+    .boundingBox();
+  const uploadButton = await page
+    .getByText("Tải tệp", { exact: true })
+    .boundingBox();
+  expect(analyzeButton).not.toBeNull();
+  expect(uploadButton).not.toBeNull();
+  expect(Math.abs(analyzeButton!.y - uploadButton!.y)).toBeLessThanOrEqual(1);
 
   const metrics = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>(".content");

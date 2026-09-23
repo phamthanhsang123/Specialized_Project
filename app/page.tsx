@@ -1712,7 +1712,6 @@ export default function Home() {
                       </div>
                     </div>{" "}
                     <div className="scan-action">
-                      {" "}
                       <button
                         className="primary-button"
                         disabled={disabled || !data?.files.length}
@@ -1721,13 +1720,6 @@ export default function Home() {
                         <Icon name="spark" size={16} />
                         {t("Phân tích mã nguồn")}
                       </button>
-                      <p>
-                        {!data.files.length
-                          ? t("Tải mã nguồn để bật chức năng phân tích.")
-                          : t(
-                              "Kết quả phân tích sẽ xuất hiện trong Vấn đề & bản sửa.",
-                            )}
-                      </p>
                     </div>
                     <section className="source-workspace">
                       {" "}

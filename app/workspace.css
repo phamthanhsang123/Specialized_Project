@@ -1028,18 +1028,6 @@
   gap: 12px;
   margin-bottom: 16px;
 }
-.workspace-v2 .analysis-controls {
-  padding: 18px;
-  background: #fff;
-  border: 1px solid #e1e8f2;
-  border-radius: 12px;
-}
-.workspace-v2 .analysis-controls label {
-  font-size: 13px;
-}
-.workspace-v2 .engine-note {
-  font-size: 13px;
-}
 .scan-action {
   display: flex;
   align-items: center;
@@ -1078,13 +1066,6 @@
   align-items: center;
   align-self: stretch;
   margin: 0;
-}
-.source-page .analysis-controls {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 14px 16px;
 }
 .source-page .scan-action {
   grid-column: 1 / -1;
@@ -2110,9 +2091,6 @@
   }
   .source-content:not(.ai-scan-active) .source-toolbar {
     margin-bottom: 16px;
-  }
-  .source-content:not(.ai-scan-active) .analysis-controls {
-    margin: 14px 0;
   }
   .source-content:not(.ai-scan-active) .scan-action {
     margin: 20px 0;

@@ -113,20 +113,20 @@ test("stop waiting and timeout never automatically repeat mutations", async ({
   await page.goto("/");
   await page.locator(".project-card").click();
   await page
-    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .getByRole("button", { name: "Phân tích mã nguồn", exact: true })
     .click();
   await page.getByRole("button", { name: "Dừng chờ", exact: true }).click();
   await expect(page.locator(".recovery-banner")).toContainText(
     "Chưa xác định kết quả",
   );
   await expect(
-    page.getByRole("button", { name: "Quét mã nguồn", exact: true }),
+    page.getByRole("button", { name: "Phân tích mã nguồn", exact: true }),
   ).toBeDisabled();
   await page
     .getByRole("button", { name: "Tải lại dữ liệu", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "Quét mã nguồn", exact: true }),
+    page.getByRole("button", { name: "Phân tích mã nguồn", exact: true }),
   ).toBeDisabled();
   expect(calls).toBe(1);
 });
@@ -237,7 +237,7 @@ test("create, reject and error feedback preserve user control", async ({
     }),
   );
   await page
-    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .getByRole("button", { name: "Phân tích mã nguồn", exact: true })
     .click();
   await expect(page.locator(".toast-error")).toContainText(
     "Analysis service temporarily unavailable",
@@ -555,9 +555,9 @@ test("quét AI dùng nhà cung cấp mặc định của backend", async ({ page
   await page.addStyleTag({
     content: ".source-workspace .code-panel { height: 1800px !important; }",
   });
-  await page.getByLabel("Chế độ phân tích").selectOption("ai");
+  await expect(page.getByLabel("Chế độ phân tích")).toHaveCount(0);
   await expect(page.getByLabel("Nhà cung cấp AI")).toHaveCount(0);
-  await page.getByRole("button", { name: "Quét bằng AI" }).click();
+  await page.getByRole("button", { name: "Phân tích mã nguồn" }).click();
   await expect(page.locator(".ai-scan-stage.scanning")).toContainText(
     "AI đang phân tích mã nguồn",
   );
@@ -1002,7 +1002,7 @@ test("projects first, separate steps, review and apply, filtering and logout", a
   );
   await expect(page.locator(".review-workspace")).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Quét mã nguồn", exact: true })
+    .getByRole("button", { name: "Phân tích mã nguồn", exact: true })
     .click();
   await expect(page.locator(".review-workspace")).toBeVisible();
   await expect(

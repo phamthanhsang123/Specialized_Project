@@ -81,7 +81,6 @@ textarea:focus-visible, select:focus-visible, a:focus-visible { outline:3px soli
 .connected-shell .topbar { min-height:72px; height:auto; padding:12px 0; gap:12px; flex-wrap:wrap; }
 .connected-shell .top-actions { flex-wrap:wrap; }
 .connected-shell .review-layout { margin-top:14px; grid-template-columns:190px minmax(270px,1.45fr) minmax(230px,.9fr); }
-.engine-note { color:#78869c; font-size:11px; line-height:1.6; margin:15px 0; }
 .file-list { height:402px; overflow:auto; }
 .file-row { align-items:flex-start; }
 .file-row > span:last-child { overflow-wrap:anywhere; }
@@ -180,10 +179,6 @@ textarea:focus-visible, select:focus-visible, a:focus-visible { outline:3px soli
   .upload-modal { padding:24px 18px; }
   .upload-modal .inline-actions > button { flex:1; }
 }
-.analysis-controls { display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin:14px 0; }
-.analysis-controls label { display:grid; gap:5px; flex-shrink:0; color:#65738a; font-size:11px; }
-.analysis-controls select { border:1px solid #d8e0ec; border-radius:6px; padding:7px 10px; background:#fff; }
-.analysis-controls .engine-note { flex:1; min-width:220px; margin:0; }
 .ai-proposal-button { margin:14px auto 0; }
 .test-explanation { display:grid; gap:8px; margin:12px 0; }
 .test-explanation > small { color:var(--muted); font-size:10px; line-height:1.5; }

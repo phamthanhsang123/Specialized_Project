@@ -320,8 +320,6 @@ export default function Home() {
   }, [testDirty]);
   const viewport = useStepFocus(activeNav, projectId);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
-  const [capabilityError, setCapabilityError] = useState("");
-  const [analysisMode, setAnalysisMode] = useState<"static" | "ai">("static");
   const folderInputRef = useCallback((input: HTMLInputElement | null) => {
     if (!input) return;
     input.setAttribute("webkitdirectory", "");
@@ -536,7 +534,12 @@ export default function Home() {
         }
       })
       .catch((failure: unknown) => {
-        if (!isAborted(failure)) setCapabilityError(errorMessage(failure));
+        if (!isAborted(failure))
+          setError(
+            t("Không đọc được cấu hình AI: {{v0}}", {
+              v0: errorMessage(failure),
+            }),
+          );
       });
     return () => controller.abort();
   }, [user, loadProjects]);
@@ -1135,7 +1138,7 @@ export default function Home() {
   }
 
   async function runAnalysis() {
-    const useAI = analysisMode === "ai";
+    const useAI = capabilities?.aiConfigured !== false;
     if (useAI) {
       viewport.current?.scrollTo({ top: 0 });
       setAiScanPhase("scanning");
@@ -1708,48 +1711,6 @@ export default function Home() {
                         </label>
                       </div>
                     </div>{" "}
-                    <div className="analysis-controls">
-                      <label>
-                        {t("Chế độ phân tích")}
-                        <select
-                          value={analysisMode}
-                          disabled={disabled}
-                          onChange={(event) =>
-                            setAnalysisMode(
-                              event.target.value as "static" | "ai",
-                            )
-                          }
-                        >
-                          <option value="static">{t("Quy tắc tĩnh")}</option>
-                          <option
-                            value="ai"
-                            disabled={!capabilities?.aiConfigured}
-                          >
-                            {capabilities?.aiConfigured
-                              ? "AI"
-                              : t("AI — chưa cấu hình")}
-                          </option>
-                        </select>
-                      </label>
-                      <p className="engine-note">
-                        {capabilities?.aiConfigured
-                          ? t(
-                              "AI chỉ nhận source từ project khi bạn bấm thao tác AI. Nội dung được gửi tới dịch vụ AI đã cấu hình; cần review đề xuất trước khi áp dụng.",
-                            )
-                          : capabilities
-                            ? t(
-                                "AI chưa được cấu hình. Bạn vẫn có thể dùng bộ phân tích quy tắc tĩnh; các chỉ số AI chưa có dữ liệu đo.",
-                              )
-                            : t(
-                                "Đang kiểm tra cấu hình AI. Bộ phân tích quy tắc tĩnh vẫn khả dụng.",
-                              )}
-                      </p>
-                      {capabilityError && (
-                        <p className="error-text">
-                          {t("Không đọc được cấu hình AI:")} {capabilityError}
-                        </p>
-                      )}
-                    </div>
                     <div className="scan-action">
                       {" "}
                       <button
@@ -1758,9 +1719,7 @@ export default function Home() {
                         onClick={() => void runAnalysis()}
                       >
                         <Icon name="spark" size={16} />
-                        {analysisMode === "ai"
-                          ? t("Quét bằng AI")
-                          : t("Quét source")}
+                        {t("Phân tích mã nguồn")}
                       </button>
                       <p>
                         {!data.files.length
@@ -1924,7 +1883,7 @@ export default function Home() {
                               {issues.length
                                 ? t("Không có vấn đề ở mức đã chọn.")
                                 : t(
-                                    "Danh sách hiện tại chưa có vấn đề. Nhấn Quét source để cập nhật phân tích.",
+                                    "Danh sách hiện tại chưa có vấn đề. Nhấn Phân tích mã nguồn để cập nhật.",
                                   )}
                             </Empty>
                           )}
